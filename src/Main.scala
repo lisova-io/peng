@@ -5,6 +5,7 @@ import cats.parse.Parser.Expectation
 import cats.parse.Parser.Expectation._
 
 import frontend.ast
+import backend.ir
 
 def getPairs[T](items: Seq[T]): Seq[(T, T)] = {
   items match
@@ -53,8 +54,4 @@ def printErrs(input: String, errs: Seq[Parser.Error]): Unit = {
 }
 
 @main def main() =
-  val whitespace = Parser.charIn(" \t\r\n").void
-  val p          = whitespace.rep *> (alpha.rep.string ~ digit.rep)
-  p.parse(" \n foo   ") match
-    case Left(err)    => printErrs(err.input.get, List(err))
-    case Right(value) => println(value.toString())
+  val a = ir.Instr()
