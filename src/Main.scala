@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import frontend.diagnostics.{printDiagnostics, containsErrors, containsWarnings, containsNotes}
 import frontend.lex.Lexer
 import frontend.parse.Parser
@@ -51,3 +52,6 @@ val optLevel = OptLevel.FullOpt
   // val newIR = passmanager.addPass(TrivialDCE()).perform
   // newIR.foreach((_, actual) => println(actual))
 }
+=======
+@main def main() = {}
+>>>>>>> 6b4cab2 (some frontendovichokstvo)
