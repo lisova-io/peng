@@ -2,29 +2,52 @@ package backend.ir
 
 import backend.irvalue._
 
-sealed abstract class Instr()
+enum IType:
+  case Add
+  case Sub
+  case Mul
+  case Div
+  case Mov
+  case Call
+  case Jmp
+  case Ret
+  case Br
+  case Cmp
 
-sealed case class Add(lhs: Value, rhs: Value) extends Instr
+abstract class Instr():
+  def itype: IType
 
-sealed case class Sub(lhs: Value, rhs: Value) extends Instr
+case class Add(lhs: Value, rhs: Value) extends Instr:
+  override def itype: IType = IType.Add
 
-sealed case class Mul(lhs: Value, rhs: Value) extends Instr
+case class Sub(lhs: Value, rhs: Value) extends Instr:
+  override def itype: IType = IType.Sub
 
-sealed case class Div(lhs: Value, rhs: Value) extends Instr
+case class Mul(lhs: Value, rhs: Value) extends Instr:
+  override def itype: IType = IType.Mul
 
-sealed case class Mov(lhs: Value, rhs: Value) extends Instr
+case class Div(lhs: Value, rhs: Value) extends Instr:
+  override def itype: IType = IType.Div
 
-sealed case class Call(fn: Value, args: List[Value]) extends Instr
+case class Mov(lhs: Value, rhs: Value) extends Instr:
+  override def itype: IType = IType.Mov
 
-sealed case class Jmp(label: Value) extends Instr
+case class Call(fn: Value, args: List[Value]) extends Instr:
+  override def itype: IType = IType.Call
 
-sealed case class Br(cond: Value, tbranch: Value, fbranch: Value) extends Instr
+case class Jmp(label: Value) extends Instr:
+  override def itype: IType = IType.Jmp
 
-sealed case class Ret(ret: Value) extends Instr
+case class Br(cond: Value, tbranch: Value, fbranch: Value) extends Instr:
+  override def itype: IType = IType.Br
+
+case class Ret(ret: Value) extends Instr:
+  override def itype: IType = IType.Ret
 
 enum Predicate:
   case Equal
   case Lt
   case Gt
 
-sealed case class Cmp(pred: Predicate, lhs: Value, rhs: Value) extends Instr
+case class Cmp(pred: Predicate, lhs: Value, rhs: Value) extends Instr:
+  override def itype: IType = IType.Cmp
