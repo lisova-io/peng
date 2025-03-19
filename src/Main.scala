@@ -5,7 +5,8 @@ import cats.parse.Parser.Expectation
 import cats.parse.Parser.Expectation._
 
 import frontend.ast
-import backend.ir
+import backend.ir._
+import backend.irvalue._
 
 def getPairs[T](items: Seq[T]): Seq[(T, T)] = {
   items match
@@ -53,5 +54,11 @@ def printErrs(input: String, errs: Seq[Parser.Error]): Unit = {
   }
 }
 
+def hello(s: Instr): Unit =
+  s match
+    case Add(x, y) => println("hi")
+    case _         => println("not hi")
+
 @main def main() =
-  val a = ir.Instr()
+  val a = Sub(ImmInt(32), ImmInt(34))
+  hello(a)

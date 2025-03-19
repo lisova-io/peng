@@ -2,52 +2,49 @@ package backend.ir
 
 import backend.irvalue._
 
-enum IType:
-  case Add
-  case Sub
-  case Mul
-  case Div
-  case Mov
-  case Call
-  case Jmp
-  case Ret
-  case Br
-  case Cmp
+abstract class Instr()
 
-abstract class Instr():
-  def itype: IType
+case class Add(dest: Value, lhs: Value, rhs: Value) extends Instr:
+  override def toString(): String =
+    s"$dest = $lhs + $rhs;"
 
-case class Add(lhs: Value, rhs: Value) extends Instr:
-  override def itype: IType = IType.Add
+case class Sub(dest: Value, lhs: Value, rhs: Value) extends Instr:
+  override def toString(): String =
+    s"$dest = $lhs - $rhs;"
 
-case class Sub(lhs: Value, rhs: Value) extends Instr:
-  override def itype: IType = IType.Sub
+case class Mul(dest: Value, lhs: Value, rhs: Value) extends Instr:
+  override def toString(): String =
+    s"$dest = $lhs * $rhs;"
 
-case class Mul(lhs: Value, rhs: Value) extends Instr:
-  override def itype: IType = IType.Mul
-
-case class Div(lhs: Value, rhs: Value) extends Instr:
-  override def itype: IType = IType.Div
+case class Div(dest: Value, lhs: Value, rhs: Value) extends Instr:
+  override def toString(): String =
+    s"$dest = $lhs / $rhs;"
 
 case class Mov(lhs: Value, rhs: Value) extends Instr:
-  override def itype: IType = IType.Mov
+  override def toString(): String =
+    s"$lhs = mov $rhs;"
 
-case class Call(fn: Value, args: List[Value]) extends Instr:
-  override def itype: IType = IType.Call
+case class Call(dest: Value, fn: Value, args: List[Value]) extends Instr:
+  override def toString(): String =
+    s"$dest = call $fn" + args.foldLeft((acc: String, arg: Value) => acc + " " + arg) + ";"
 
 case class Jmp(label: Value) extends Instr:
-  override def itype: IType = IType.Jmp
+  override def toString(): String =
+    s"jmp $label"
 
 case class Br(cond: Value, tbranch: Value, fbranch: Value) extends Instr:
-  override def itype: IType = IType.Br
+  override def toString(): String =
+    s"br $cond $tbranch $fbranch"
 
 case class Ret(ret: Value) extends Instr:
-  override def itype: IType = IType.Ret
+  override def toString(): String =
+    s"ret $ret"
 
 enum Predicate:
-  case Equal
-  case Lt
-  case Gt
+  case eq
+  case lt
+  case gt
 
-case class Cmp(pred: Predicate, lhs: Value, rhs: Value) extends Instr:
-  override def itype: IType = IType.Cmp
+case class Cmp(dest: Value, pred: Predicate, lhs: Value, rhs: Value) extends Instr:
+  override def toString(): String =
+    s"$dest = cmp $pred $lhs $rhs"
