@@ -24,6 +24,7 @@ case class Var(input: String, vartype: VType) extends Value:
   override def vtype: VType       = vartype
   override def isConst: Boolean   = false
   override def toString(): String = s" $input"
+<<<<<<< HEAD
 =======
 abstract class Value
 
@@ -33,3 +34,5 @@ sealed case class ImmBool(input: Boolean) extends Value
 
 sealed case class Var(input: String) extends Value
 >>>>>>> faf60da (backending all over compiler)
+=======
+>>>>>>> 6417e3e (logging and sheise)
