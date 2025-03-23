@@ -7,7 +7,7 @@ trait ControlFlow
 
 class Program extends ControlFlow
 
-case class BasicBlock(name: String, instrs: List[Instr]) extends Value with ControlFlow:
+case class BasicBlock(name: String, instrs: Vector[Instr]) extends Value with ControlFlow:
   override def vtype: VType     = VType.unit // idk
   override def isConst: Boolean = false
   override def toString(): String =
