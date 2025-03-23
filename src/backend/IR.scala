@@ -2,21 +2,26 @@ package backend.ir
 
 import backend.irvalue._
 
-abstract class Instr()
+abstract class Instr:
+  def vtype: VType
 
 case class Add(dest: Value, lhs: Value, rhs: Value) extends Instr:
+  override def vtype: VType = dest.vtype
   override def toString(): String =
     s"$dest = $lhs + $rhs;"
 
 case class Sub(dest: Value, lhs: Value, rhs: Value) extends Instr:
+  override def vtype: VType = dest.vtype
   override def toString(): String =
     s"$dest = $lhs - $rhs;"
 
 case class Mul(dest: Value, lhs: Value, rhs: Value) extends Instr:
+  override def vtype: VType = dest.vtype
   override def toString(): String =
     s"$dest = $lhs * $rhs;"
 
 case class Div(dest: Value, lhs: Value, rhs: Value) extends Instr:
+  override def vtype: VType = dest.vtype
   override def toString(): String =
     s"$dest = $lhs / $rhs;"
 
