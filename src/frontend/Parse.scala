@@ -9,8 +9,8 @@ class ParseError(val span: Span, val msg: String):
 
 type ParseResult[T] = Either[List[ParseError], T]
 
-private def unexpected[A, E](span: Span, actual: A, expected: E*): ParseError = {
-  def formatExpected(l: Seq[E]): String =
+private def unexpected[A](span: Span, actual: A, expected: Any*): ParseError = {
+  def formatExpected(l: Seq[Any]): String =
     l match
       case Nil           => ""
       case x :: Nil      => x.toString
@@ -21,47 +21,70 @@ private def unexpected[A, E](span: Span, actual: A, expected: E*): ParseError = 
 }
 
 class Parser(lexer: Lexer):
-  def token[Tok](tok: Tok): ParseResult[Unit] =
+  private def unexpectedEof(expected: Any*): ParseError = unexpected(lexer.endSpan, "eof", expected)
+
+  private def token[T](tok: Token, value: T = ()): ParseResult[WithSpan[T]] =
     lexer.next
-      .map(_ match
-        case ws @ WithSpan(tok, s) => Right(()))
-      .getOrElse(Left(List(unexpected(lexer.endSpan, "eof", "variable declaration"))))
+      .map(ws =>
+        if ws.value.is(tok)
+        then Right(ws.map(_ => value))
+        else Left(List(unexpected(ws.span, ws.value, tok)))
+      )
+      .getOrElse(Left(List(unexpected(lexer.endSpan, "eof", tok))))
 
-  def token[Tok, T](matcher: Token => Boolean, fn: Tok => T): ParseResult[WithSpan[T]] = ???
+  private def tryToken[T](tok: Token, value: T = ()): ParseResult[WithSpan[T]] =
+    lexer.peek
+      .map(ws =>
+        if ws.value.is(tok)
+        then { lexer.next; Right(ws.map(_ => value)) }
+        else Left(List(unexpected(ws.span, ws.value, tok)))
+      )
+      .getOrElse(Left(List(unexpected(lexer.endSpan, "eof", tok))))
 
-  def parseFnDecl: ParseResult[FnDecl] = ???
+  private def parseNumber: ParseResult[WithSpan[Int]] =
+    lexer.next
+      .map(ws =>
+        ws match
+          case WithSpan(Token.Number(v), s) => Right(ws.map(_ => v))
+          case WithSpan(t, s)               => Left(List(unexpected(s, t, "number")))
+      )
+      .getOrElse(Left(List(unexpectedEof("number"))))
 
-  def parseType: ParseResult[WithSpan[Type]] = ???
+  private def parseIdentifier: ParseResult[WithSpan[String]] =
+    lexer.next
+      .map(ws =>
+        ws match
+          case WithSpan(Token.Identifier(v), s) => Right(ws.map(_ => v))
+          case WithSpan(t, s)                   => Left(List(unexpected(s, t, "identifier")))
+      )
+      .getOrElse(Left(List(unexpectedEof("identifier"))))
 
-  def parseExpr: ParseResult[Expr] = ???
+  private def parseType: ParseResult[WithSpan[Type]] = ???
 
-  def parseVarDecl(const: Boolean): ParseResult[FnDecl] = {
-    val const = token(_ == Token.Val, _ => true).orElse(token(_ == Token.Var, _ => false))
-    val name = token[Token.Identifier, Name](
-      (_ == Token.Identifier),
-      (_.value)
-    )
+  private def parseExpr: ParseResult[Expr] = ???
+
+  private def parseFnDecl: ParseResult[FnDecl] = ???
+
+  private def parseVarDecl(const: Boolean): ParseResult[VarDecl] = {
+    val const = tryToken(Token.Val, true).orElse(token(Token.Var, false))
+    val name  = parseIdentifier
 
     val typeResult: ParseResult[Option[WithSpan[Type]]] =
       lexer.peek
-        .map(ws =>
-          ws match
-            case WithSpan(Token.Colon, _) => token(Token.Colon).flatMap(_ => parseType).map(Some(_))
-            case WithSpan(Token.Assign, _) => Right(None)
-            case WithSpan(tok, span) => Left(List(unexpected(span, tok, "variable declaration")))
-        )
-        .getOrElse(Left(List(unexpected(lexer.endSpan, "eof", "variable declaration"))))
+        .map(_ match
+          case WithSpan(Token.Colon, _)  => token(Token.Colon).flatMap(_ => parseType).map(Some(_))
+          case WithSpan(Token.Assign, _) => Right(None)
+          case WithSpan(tok, span) => Left(List(unexpected(span, tok, "variable declaration"))))
+        .getOrElse(Left(List(unexpectedEof("variable declaration"))))
 
-    const.flatMap(const =>
-      name.flatMap(name =>
-        typeResult.flatMap(t =>
-          // todo: value
-          token(Token.Assign)
-            .flatMap(_ => parseExpr)
-            .map(VarDecl(const.value, name, t)) // got concrete type
-        )
-      )
-    )
+    val value = token(Token.Assign).flatMap(_ => parseExpr)
+
+    for {
+      const <- const
+      name  <- name
+      t     <- typeResult
+      value <- value
+    } yield VarDecl(const.value, name, t, value)
   }
 
   def parse: ParseResult[AST] = {

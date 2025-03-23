@@ -1,12 +1,8 @@
 package frontend.errorprint
 
-import cats.parse.Parser
-import cats.parse.Rfc5234._
-import cats.data.NonEmptyList
-import cats.parse.Parser.Expectation
-import cats.parse.Parser.Expectation._
-
 import frontend.ast
+import frontend.lex.{Span, SpanCmp}
+import frontend.parse.ParseError
 
 def getPairs[T](items: Seq[T]): Seq[(T, T)] = {
   items match
@@ -19,37 +15,22 @@ extension (s: String)
     val lfs = (s.zipWithIndex.filter((c, _) => c == '\n')).map((_, i) => i)
     getPairs(0 +: lfs.toList :+ s.length)
 
-def fmtExpectation(e: Expectation): String =
-  e match
-    case OneOfStr(_, strs)       => s"one of [${strs.map('`' + _ + '`').mkString(", ")}]"
-    case InRange(_, b, e)        => s"[$b-$e]"
-    case StartOfString(_)        => "start of string"
-    case EndOfString(_, length)  => "end of string"
-    case Length(_, exp, act)     => s"length $exp, got $act"
-    case ExpectedFailureAt(_, m) => "fail"
-    case Fail(_)                 => "fail"
-    case FailWith(_, msg)        => s"fail with $msg"
-    case WithContext(ctx, inner) => s"$ctx: ${fmtExpectation(inner)}"
-
 def fmtChar(c: Char): String =
   c match
     case '\n' => "\\n"
     case c    => c.toString
 
-def printErrs(input: String, errs: Seq[Parser.Error]): Unit = {
-  errs.sortBy(_.failedAtOffset)
+def printErrs(input: String, errs: Seq[ParseError]): Unit = {
   val lines = input.splitIntoLines.zipWithIndex
-  for (err <- errs) {
-    val failOffset = err.failedAtOffset
+  for (err <- errs.sortBy(_.span)(SpanCmp)) {
     val ((b, e), line) =
-      lines.find((l, _) => l._1 <= failOffset && failOffset <= l._2).get
-    val offset        = failOffset - b
+      lines.find((l, _) => l._1 <= err.span.b && err.span.e <= l._2).get
+    val offset        = err.span.b - b
     val offsetLen     = offset.toString.length
     val front         = "      | "
     val frontWithLine = " " * (5 - offsetLen) + (line + 1).toString + " | "
-    val c             = input(err.failedAtOffset)
-    val expectations  = err.expected.map(fmtExpectation).toList.mkString(" | ")
-    println(s"expected $expectations")
+    val c             = input(err.span.b)
+    println(err.msg)
     println(frontWithLine + input.slice(b + 1, e - 1))
     println(front + " " * offset + '^')
   }
