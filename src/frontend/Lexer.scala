@@ -10,6 +10,9 @@ type Offset = Int
 
 class Span(val b: Offset, val e: Offset)
 
+object SpanCmp extends Ordering[Span]:
+  override def compare(x: Span, y: Span): Int = if x.b == y.b then x.e - y.e else x.b - y.b
+
 object Span:
   def unapply(s: Span): (Offset, Offset) = (s.b, s.e)
 
