@@ -136,7 +136,7 @@ class Parser(lexer: Lexer):
         case _                   => None
       ),
       Token.Number
-    ).map(v => NumLitExpr("", v))
+    ).map(v => NumLitExpr("int", v))
 
   private def parseTerm: ParseResult[Expr] = {
     enum ExprType:
@@ -210,14 +210,14 @@ class Parser(lexer: Lexer):
       e   <- parseBinaryExpr(0, lhs)
     } yield e
 
-  private def parseRetStmt: ParseResult[RetStmt | VoidRetStmt] =
+  private def parseRetStmt: ParseResult[RetStmt | VoidRetStmt.type] =
     token(matchToken(Token.Return), Token.Return)
       .andThen(peekToken(_ match
         case Token.Semicolon => Some(false)
         case _               => Some(true)))
       .flatMap(ws => {
         val WithSpan(hasExpr, _) = ws
-        if hasExpr then parseExpr.map(e => RetStmt(e)) else { lexer.next; Right(VoidRetStmt()) }
+        if hasExpr then parseExpr.map(e => RetStmt(e)) else { lexer.next; Right(VoidRetStmt) }
       })
 
   private def parseStmt: ParseResult[Stmt] = {
@@ -384,7 +384,7 @@ class Parser(lexer: Lexer):
         case Left(diags) => diagnostics ++= diags
         // TODO: handle name duplication
         // case Right(decl) if res.contains(decl.getName) => errors :+= ParseError(i)
-        case Right(decl) => res += (decl.name.value, decl)
+        case Right(decl) => res += (decl.getName.value, decl)
     }
 
     (res, diagnostics)
