@@ -217,7 +217,7 @@ class Parser(lexer: Lexer):
         case _               => Some(true)))
       .flatMap(ws => {
         val WithSpan(hasExpr, _) = ws
-        if hasExpr then parseExpr.map(e => RetStmt(e)) else { lexer.next; Right(VoidRetStmt) }
+        if hasExpr then parseExpr.map(e => RetStmt(e)) else Right(VoidRetStmt)
       })
 
   private def parseStmt: ParseResult[Stmt] = {
@@ -299,7 +299,7 @@ class Parser(lexer: Lexer):
           Token.RParen
         ) match
           case Left(err)                 => break(Left(err))
-          case Right(WithSpan(false, _)) => break(Right(List()))
+          case Right(WithSpan(false, _)) => lexer.next; break(Right(List()))
           case Right(WithSpan(true, _))  => ()
 
         var params: List[(WithSpan[Name], WithSpan[Type])] = List()

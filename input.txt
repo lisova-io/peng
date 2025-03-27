@@ -1,4 +1,1 @@
-fn foo(a: int, b: int, c: int) int {
-   val bar = a + b;
-   return foo(a + b - 42, bar, 3);
-}
+fn foo(a: int) int { return; }
