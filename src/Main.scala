@@ -1,6 +1,7 @@
 import frontend.diagnostics.{printDiagnostics, containsErrors, containsWarnings, containsNotes}
 import frontend.lex.Lexer
 import frontend.parse.Parser
+import frontend.ast.printAST
 
 @main def main(): Unit = {
   val source = scala.io.Source.fromFile("input.txt")
@@ -14,5 +15,5 @@ import frontend.parse.Parser
   printDiagnostics(input, diagnostics)
   if diagnostics.containsErrors then return
 
-  ast.foreach((_, d) => println(d))
+  printAST(ast)
 }
