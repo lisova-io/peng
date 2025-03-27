@@ -8,9 +8,10 @@ extension (c: Char)
 
 type Offset = Int
 
-class Span(val b: Offset, val e: Offset)
+class Span(val b: Offset, val e: Offset):
+  def len: Int = e - b + 1
 
-object SpanCmp extends Ordering[Span]:
+implicit object SpanOrdering extends Ordering[Span]:
   override def compare(x: Span, y: Span): Int = if x.b == y.b then x.e - y.e else x.b - y.b
 
 object Span:
