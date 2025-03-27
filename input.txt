@@ -1,1 +1,1 @@
-fn foo(a: int) int { return; }
+fn foo() int { foo(); }
