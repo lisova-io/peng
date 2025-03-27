@@ -86,7 +86,7 @@ class Parser(lexer: Lexer):
         Token.RParen
       ) match
         case Left(err)                 => break(Left(err))
-        case Right(WithSpan(false, _)) => break(Right(List()))
+        case Right(WithSpan(false, _)) => lexer.next; break(Right(List()))
         case Right(WithSpan(true, _))  => ()
 
       var args: List[Expr] = List()
