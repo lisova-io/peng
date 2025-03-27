@@ -30,3 +30,24 @@ enum Token:
           (Plus, Plus) | (Minus, Minus) | (Asterisk, Asterisk) | (Assign, Assign) =>
         true
       case _ => false
+
+  override def toString(): String =
+    this match
+      case Assign                           => "`=`"
+      case Fn                               => "`fn`"
+      case Val                              => "`val`"
+      case Var                              => "`var`"
+      case Return                           => "`return`"
+      case frontend.lex.Token.Identifier(_) => "identifier"
+      case frontend.lex.Token.Number(_)     => "number"
+      case LParen                           => "`(`"
+      case RParen                           => "`)`"
+      case LBrace                           => "`{`"
+      case RBrace                           => "`}`"
+      case Comma                            => "`,`"
+      case Dot                              => "`.`"
+      case Colon                            => "`:`"
+      case Semicolon                        => "`;`"
+      case Plus                             => "`+`"
+      case Minus                            => "`-`"
+      case Asterisk                         => "`*`"

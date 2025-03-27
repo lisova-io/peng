@@ -1,15 +1,18 @@
-import frontend.errorprint.printErrs
+import frontend.diagnostics.{printDiagnostics, containsErrors, containsWarnings, containsNotes}
 import frontend.lex.Lexer
 import frontend.parse.Parser
 
-@main def main() = {
+@main def main(): Unit = {
   val source = scala.io.Source.fromFile("input.txt")
   val input =
     try source.mkString
     finally source.close()
 
-  val lexer = Lexer(input)
-  Parser(lexer).parse match
-    case Left(errs) => printErrs(input, errs)
-    case Right(ast) => ast.foreach((_, d) => println(d))
+  val lexer              = Lexer(input)
+  val (ast, diagnostics) = Parser(lexer).parse
+
+  printDiagnostics(input, diagnostics)
+  if diagnostics.containsErrors then return
+
+  ast.foreach((_, d) => println(d))
 }

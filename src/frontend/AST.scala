@@ -23,7 +23,7 @@ type Block = List[Stmt]
 
 sealed class FnDecl(
     name: WithSpan[Name],
-    val args: List[(WithSpan[Name], WithSpan[Type])],
+    val params: List[(WithSpan[Name], WithSpan[Type])],
     val rettype: WithSpan[Type],
     val body: Block
 ) extends Decl(name)
