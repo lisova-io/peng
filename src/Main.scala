@@ -2,6 +2,7 @@ import frontend.diagnostics.{printDiagnostics, containsErrors, containsWarnings,
 import frontend.lex.Lexer
 import frontend.parse.Parser
 import frontend.ast.printAST
+import backend.irgen.asttranslator._
 
 @main def main(): Unit = {
   val source = scala.io.Source.fromFile("input.txt")
@@ -16,4 +17,7 @@ import frontend.ast.printAST
   if diagnostics.containsErrors then return
 
   printAST(ast)
+
+  val ir = DefaultTranslator(ast).gen
+  ir.foreach((_, actual) => println(actual))
 }
