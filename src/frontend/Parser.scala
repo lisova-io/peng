@@ -47,7 +47,7 @@ class Parser(lexer: Lexer):
       })
       .getOrElse(Left(List(expected(lexer.endSpan, expect*))))
 
-  private def parseNumber: ParseResult[WithSpan[Int]] =
+  private def parseNumber: ParseResult[WithSpan[BigInt]] =
     token(
       _ match
         case Token.Number(value) => Some(value)
@@ -73,6 +73,17 @@ class Parser(lexer: Lexer):
       ,
       "type"
     )
+
+  private def tryParseType: Option[WithSpan[Type]] =
+    peekToken(
+      _ match
+        case Token.Identifier(value) => Some(value)
+        case _                       => None
+      ,
+      "type"
+    ) match
+      case Left(err) => None
+      case Right(t)  => lexer.next; Some(t)
 
   private def parseRefExpr: ParseResult[VarRefExpr | CallExpr] = {
     def parseArgs: ParseResult[List[Expr]] = boundary {
@@ -136,7 +147,7 @@ class Parser(lexer: Lexer):
         case _                   => None
       ),
       Token.Number
-    ).map(v => NumLitExpr("int", v))
+    ).map(v => NumLitExpr(None, v))
 
   private def parseTerm: ParseResult[Expr] = {
     enum ExprType:
@@ -330,10 +341,10 @@ class Parser(lexer: Lexer):
 
     token(matchToken(Token.Fn), Token.Fn).andThen(
       for {
-        name    <- parseIdentifier
-        params  <- parseParams
-        rettype <- parseType
-        body    <- parseBlock
+        name   <- parseIdentifier
+        params <- parseParams
+        rettype = tryParseType
+        body <- parseBlock
       } yield FnDecl(name, params, rettype, body)
     )
   }
@@ -376,9 +387,10 @@ class Parser(lexer: Lexer):
 
     while lexer.peek.isDefined do {
       val declRes = lexer.peek.get match
-        case WithSpan(Token.Fn, _)              => parseFnDecl
-        case WithSpan(Token.Val | Token.Var, _) => parseVarDecl
-        case WithSpan(t, s) => lexer.next; Left(List(expected(s, t, "declaration")))
+        case WithSpan(Token.Fn, _) => parseFnDecl
+        case WithSpan(Token.Val | Token.Var, _) =>
+          parseVarDecl.flatMap(d => token(matchToken(Token.Semicolon), Token.Semicolon).map(_ => d))
+        case WithSpan(t, s) => lexer.next; Left(List(expected(s, "declaration")))
 
       declRes match
         case Left(diags) => diagnostics ++= diags

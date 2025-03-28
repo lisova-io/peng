@@ -9,10 +9,10 @@ extension (c: Char)
 type Offset = Int
 
 class Span(val b: Offset, val e: Offset):
-  def len: Int = e - b + 1
+  def len: Offset = e - b + 1
 
 implicit object SpanOrdering extends Ordering[Span]:
-  override def compare(x: Span, y: Span): Int = if x.b == y.b then x.e - y.e else x.b - y.b
+  override def compare(x: Span, y: Span): Int = if x.b == y.b then x.e compare y.e else x.b compare y.b
 
 object Span:
   def unapply(s: Span): (Offset, Offset) = (s.b, s.e)
@@ -75,7 +75,7 @@ class Lexer(val input: String):
           }
           case c if c.isDigit => {
             val raw = c + getWhile(_.isDigit)
-            Token.Number(raw.toInt) -> Span(b, b + raw.length - 1)
+            Token.Number(BigInt(raw)) -> Span(b, b + raw.length - 1)
           }
       })
       .map((tok, span) => WithSpan(tok, span))
