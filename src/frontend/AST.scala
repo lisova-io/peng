@@ -25,7 +25,7 @@ type Block = List[Stmt]
 sealed case class FnDecl(
     val name: WithSpan[Name],
     val params: List[(WithSpan[Name], WithSpan[Type])],
-    val rettype: WithSpan[Type],
+    val rettype: Option[WithSpan[Type]],
     val body: Block
 ) extends Decl:
   override def getName: WithSpan[Name] = name
@@ -74,7 +74,7 @@ sealed case class VarRefExpr(val name: WithSpan[Name])                          
 sealed case class CallExpr(val name: WithSpan[Name], val args: List[Expr])       extends Expr
 sealed case class BinExpr(val op: WithSpan[BinOp], val lhs: Expr, val rhs: Expr) extends Expr
 sealed case class UnaryExpr(val op: WithSpan[UnaryOp], val expr: Expr)           extends Expr
-sealed case class NumLitExpr(val tp: Type, val value: WithSpan[Int])             extends Expr
+sealed case class NumLitExpr(val tp: Option[Type], val value: WithSpan[BigInt])  extends Expr
 
 private def makeOffset(depth: Int) = print("  " * depth)
 
@@ -94,7 +94,7 @@ def printExpr(expr: Expr, depth: Int): Unit =
       println(s"UnaryExpr $op")
       printExpr(e, depth + 1)
     case NumLitExpr(t, WithSpan(v, _)) =>
-      println(s"NumLitExpr $t $v")
+      println(s"NumLitExpr ${t.getOrElse("UNDEF")} $v")
 
 def printStmt(stmt: Stmt, depth: Int): Unit =
   makeOffset(depth)
@@ -116,9 +116,9 @@ def printStmt(stmt: Stmt, depth: Int): Unit =
 def printDecl(decl: Decl, depth: Int = 0): Unit =
   makeOffset(depth)
   decl match
-    case FnDecl(WithSpan(name, _), params, WithSpan(rettype, _), body) =>
+    case FnDecl(WithSpan(name, _), params, rettype, body) =>
       println(
-        s"FnDecl $name(${params.map(p => s"${p._1.value}: ${p._2.value}").mkString(", ")}) $rettype"
+        s"FnDecl $name(${params.map(p => s"${p._1.value}: ${p._2.value}").mkString(", ")}) ${rettype.map(_.value).getOrElse("")}"
       )
       body.foreach(s => printStmt(s, depth + 1))
     case VarDecl(const, WithSpan(name, _), tp, value) =>

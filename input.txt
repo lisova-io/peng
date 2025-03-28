@@ -1,1 +1,3 @@
-fn foo() int { foo(); }
+val bar = 42;
+
+fn foo() { return bar; }
