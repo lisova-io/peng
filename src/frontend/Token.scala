@@ -7,7 +7,7 @@ enum Token:
   case Return
 
   case Identifier(val value: String)
-  case Number(val value: Int)
+  case Number(val value: BigInt)
 
   case LParen
   case RParen
