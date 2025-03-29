@@ -8,25 +8,33 @@ import backend.ir.irvalue._
 import backend.irgen.irbuilder.BBuilder
 import backend.irgen.irbuilder.FnBuilder
 import scala.collection.mutable.HashMap
+import com.typesafe.scalalogging._
+import scala.collection.mutable
 
 type AST      = HashMap[Name, Decl]
 type ASTType  = Option[WithSpan[String]]
 type ASTFnArg = (WithSpan[String], WithSpan[String])
 
-trait ASTTranslator:
+sealed trait ASTTranslator:
   def genNode(node: AstNode): Value
+  def gen: HashMap[String, Function]
 
-trait TranslatorCtx:
+sealed trait TranslatorCtx:
   def genVirtualReg(vtype: VType): Var
+  def genName: String
 
-class DefaultCtx extends TranslatorCtx:
+sealed class DefaultCtx extends TranslatorCtx:
   var counter: Int = 0
 
   def genVirtualReg(vtype: VType): Var =
     counter += 1
     Var("%" + counter.toString, vtype)
 
-class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) extends ASTTranslator:
+  def genName: String =
+    counter += 1
+    counter.toString
+
+sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) extends ASTTranslator:
   val blockBuilder: BBuilder         = BBuilder()
   val fnBuilder: FnBuilder           = FnBuilder()
   val fns: HashMap[String, Function] = HashMap()
@@ -36,7 +44,7 @@ class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) extends AST
    * Side effect is that it adds instruction to the current block in the builder.
    * Returns name of the virtual register that is result of this expression.
    */
-  private def genNodeBin(op: BinOp, lhs: Expr, rhs: Expr): Value =
+  protected def genNodeBin(op: BinOp, lhs: Expr, rhs: Expr): Value =
     val left  = genNode(lhs)
     val right = genNode(rhs)
     val vreg  = ctx.genVirtualReg(VType.i32)
@@ -53,7 +61,7 @@ class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) extends AST
    * Internal function that transforms type from representation it is
    * in AST to the type that is used in IR
    */
-  private def astTypeToIR(tp: ASTType): VType =
+  protected def astTypeToIR(tp: ASTType): VType =
     def getType(str: String): VType =
       str match
         case "int"  => VType.i32
@@ -65,7 +73,7 @@ class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) extends AST
    * Side effect is that it adds instruction to the current block in the builder.
    * Returns name of the virtual register that is result of this expression.
    */
-  private def genNodeCall(name: String, args: List[Expr]): Value =
+  protected def genNodeCall(name: String, args: List[Expr]): Value =
     assert(ast.contains(name))
     val irArgs = args.map(genNode(_))
     ast(name) match
@@ -83,7 +91,7 @@ class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) extends AST
    * Side effect is that it adds instruction to the current block in the builder.
    * Returns name of the virtual register that is result of this expression.
    */
-  private def genNodeVDecl(
+  protected def genNodeVDecl(
       const: Boolean,
       name: String,
       tp: ASTType,
@@ -100,39 +108,41 @@ class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) extends AST
    * Ends the current basic block, builds it,
    * adds it to the current function builder.
    */
-  private def blockEnd: Value =
+  protected def blockEnd: Value =
     val block = blockBuilder.build
     fnBuilder.addBlock(block)
+    blockBuilder.reset
+    blockBuilder.setName(ctx.genName)
     block
 
   /*
    * Ends the function, builds it, saves it in hashmap.
    */
-  private def fnEnd: Value =
+  protected def fnEnd: Value =
     val fn = fnBuilder.build
     fns.addOne((fn.name, fn))
     fn
 
-  private def genNodeRet(): Value =
+  protected def genNodeRet(): Value =
     val void = Void()
     blockBuilder.addInstr(Ret(void))
     blockEnd
     void
 
-  private def genNodeRet(expr: Expr): Value =
+  protected def genNodeRet(expr: Expr): Value =
     val value = genNode(expr)
     blockBuilder.addInstr(Ret(value))
     blockEnd
     value
 
-  private def genBlock(block: Block): Value =
+  protected def genBlock(block: Block): Value =
     block.foreach(genNode(_))
     Void()
 
-  private def genVarRef(name: String): Value =
+  protected def genVarRef(name: String): Value =
     Var(name, VType.i32)
 
-  private def fullReset: Unit =
+  protected def fullReset: Unit =
     fnBuilder.reset
     blockBuilder.reset
 
@@ -179,3 +189,58 @@ class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) extends AST
   def gen: HashMap[String, Function] =
     ast.foreach((_, decl) => genNode(decl))
     fns
+
+final class LoggingTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx())
+    extends DefaultTranslator(ast, ctx)
+    with StrictLogging:
+  private def logCall[T](name: String, res: => T, args: Any*): T =
+    val argString = args.mkString(", ")
+    if argString.length != 0 then logger.debug(s"call to $name, args: $argString")
+    else logger.debug(s"call to $name")
+    res
+  override protected def astTypeToIR(tp: ASTType): VType =
+    logCall("astTypeToIR", super.astTypeToIR(tp), tp)
+
+  override protected def blockEnd: Value =
+    logCall("blockEnd", super.blockEnd)
+
+  override protected def genNodeBin(op: BinOp, lhs: Expr, rhs: Expr): Value =
+    logCall("genNodeBin", super.genNodeBin(op, lhs, rhs), op, lhs, rhs)
+
+  override protected def fnEnd: Value =
+    logCall("fnEnd", super.fnEnd)
+
+  override protected def genBlock(block: Block): Value =
+    logCall("genBlock", super.genBlock(block), block)
+
+  override protected def genVarRef(name: String): Value =
+    logCall("genVarRef", super.genVarRef(name), name)
+
+  override protected def genNodeCall(name: String, args: List[Expr]): Value =
+    logCall("genNodeCall", super.genNodeCall(name, args), name, args.mkString(", "))
+
+  override protected def genNodeRet(): Value =
+    logCall("genNodeRet(void)", super.genNodeRet())
+
+  override def gen: HashMap[String, Function] =
+    logCall("gen", super.gen)
+
+  override protected def genNodeRet(expr: Expr): Value =
+    logCall("genNodeRet", super.genNodeRet(expr), expr)
+
+  override def genDecl(decl: Decl): Value =
+    logCall("genDecl", super.genDecl(decl), decl)
+
+  override def genNode(node: AstNode): Value =
+    logCall("genNode", super.genNode(node), node)
+
+  override protected def genNodeVDecl(
+      const: Boolean,
+      name: String,
+      tp: ASTType,
+      value: Expr
+  ): Value =
+    logCall("genNodeVDecl", super.genNodeVDecl(const, name, tp, value), const, name, tp, value)
+
+  override protected def fullReset: Unit =
+    logCall("fullReset", super.fullReset)

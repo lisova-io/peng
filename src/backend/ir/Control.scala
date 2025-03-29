@@ -12,7 +12,7 @@ case class BasicBlock(name: String, var instrs: Vector[Instr]) extends Value wit
   override def vtype: VType = VType.unit // idk
   override def toString: String =
     val sep = System.lineSeparator() + "  "
-    s"$name:" + sep + instrs.mkString(sep)
+    s"%$name:" + sep + instrs.mkString(sep) + System.lineSeparator()
 
 case class Function(blocks: Vector[BasicBlock], rtype: VType, name: String, args: List[Value])
     extends Value
