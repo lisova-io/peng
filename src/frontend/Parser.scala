@@ -276,13 +276,19 @@ class Parser(lexer: Lexer):
           case Right(false) => lexer.next; break(Right(block))
           case Right(true)  => ()
 
-        parseStmt match
-          case Left(err)   => break(Left(err))
-          case Right(stmt) => block :+= stmt
+        val shouldExpectSemi =
+          parseStmt match
+            case Left(err) => break(Left(err))
+            case Right(stmt) =>
+              block :+= stmt
+              stmt match
+                case BlockStmt(_) => false
+                case _            => true
 
-        semi match
-          case Left(err) => break(Left(err))
-          case Right(_)  => ()
+        if shouldExpectSemi then
+          semi match
+            case Left(err) => break(Left(err))
+            case Right(_)  => ()
       }
       Right(block)
     }
