@@ -1,8 +1,8 @@
 package backend.irgen.irbuilder
 
-import backend.control._
-import backend.ir._
-import backend.irvalue._
+import backend.ir.control._
+import backend.ir.ir._
+import backend.ir.irvalue._
 
 // TODO: type-safe builder for function
 
