@@ -97,7 +97,8 @@ case class Br(cond: Value, tbranch: Value, fbranch: Value) extends Value with In
   override def toString: String =
     s"br $cond $tbranch $fbranch"
 
-case class Ret(ret: Value) extends Value with Instr:
+case class Ret(ret: Value) extends Value with Instr with UnaryOp:
+  def getArg: Value         = ret
   override def vtype: VType = VType.unit
   override def toString: String =
     s"ret $ret;"

@@ -11,7 +11,8 @@ import backend.ir.irvalue.Var
 import backend.ir.ir._
 
 class TrivialDCE extends GlobalPass:
-  val values: HashSet[Value] = HashSet()
+  private val values: HashSet[Value] = HashSet()
+  private var changed: Boolean       = true
 
   private def processArgValue(value: Value): Unit =
     value match
@@ -43,14 +44,17 @@ class TrivialDCE extends GlobalPass:
     for (instr <- block.instrs) do processInstr(instr)
 
   private def postProcessBlock(block: BasicBlock) =
+    val oldLen = block.instrs.length
     block.instrs = block.instrs.filterNot({
       _ match
         case instr: NonVoid =>
           values.contains(instr.getDest)
         case _ => false
     })
+    changed = block.instrs.length != oldLen
   override def pass(fn: Function): Function =
-    for (block <- fn.blocks) do processBlock(block)
-    for (block <- fn.blocks) do postProcessBlock(block)
-    println(fn)
+    while (changed) do
+      changed = false
+      for (block <- fn.blocks) do processBlock(block)
+      for (block <- fn.blocks) do postProcessBlock(block)
     fn
