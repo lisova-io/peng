@@ -11,6 +11,8 @@ import scala.collection.mutable.HashMap
 import com.typesafe.scalalogging._
 import scala.collection.mutable
 
+// TODO: Generic wrap for logging
+
 type AST      = HashMap[Name, Decl]
 type ASTType  = Option[WithSpan[String]]
 type ASTFnArg = (WithSpan[String], WithSpan[String])
@@ -33,6 +35,14 @@ sealed class DefaultCtx extends TranslatorCtx:
   def genName: String =
     counter += 1
     counter.toString
+
+sealed class LoggingCtx extends DefaultCtx with StrictLogging:
+  override def genVirtualReg(vtype: VType): Var =
+    logger.debug(s"call of genVirtualReg $vtype, prev counter $counter")
+    super.genVirtualReg(vtype)
+  override def genName: String =
+    logger.debug(s"call of genName, prev counter $counter")
+    super.genName
 
 sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) extends ASTTranslator:
   val blockBuilder: BBuilder         = BBuilder()
@@ -190,7 +200,12 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
     ast.foreach((_, decl) => genNode(decl))
     fns
 
-final class LoggingTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx())
+/*
+ *
+ * Logging wrapper on top of normal AST to IR translator.
+ * Logs call of each function and arguments it's been called with.
+ */
+final class LoggingTranslator(ast: AST, ctx: TranslatorCtx = LoggingCtx())
     extends DefaultTranslator(ast, ctx)
     with StrictLogging:
   private def logCall[T](name: String, res: => T, args: Any*): T =

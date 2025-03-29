@@ -33,11 +33,11 @@ val mode = Mode.Debug
     case Mode.Debug   => DebugOverseer
     case Mode.Default => DefaultOverseer
 
-  val translator = DebugOverseer.getTranslator(ast)
+  val translator = overseer.getTranslator(ast)
 
   val ir = translator.gen
 
-  val passmanager = DebugOverseer.getPassManager(ir)
+  val passmanager = overseer.getPassManager(ir)
 
   val newIR = passmanager.addPass(TrivialDCE()).perform
   // newIR.foreach((_, actual) => println(actual))
