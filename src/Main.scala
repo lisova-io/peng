@@ -3,6 +3,9 @@ import frontend.lex.Lexer
 import frontend.parse.Parser
 import frontend.ast.printAST
 import backend.irgen.asttranslator._
+import backend.opt.passmanager.PassManager
+import backend.opt.passmanager.DefaultManager
+import backend.opt.passes.trivialdce.TrivialDCE
 
 @main def main(): Unit = {
   val source = scala.io.Source.fromFile("input.txt")
@@ -20,4 +23,6 @@ import backend.irgen.asttranslator._
 
   val ir = DefaultTranslator(ast).gen
   ir.foreach((_, actual) => println(actual))
+  val pm = DefaultManager(ir).addPass(TrivialDCE()).perform
+
 }

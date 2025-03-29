@@ -1,4 +1,4 @@
-package backend.irvalue
+package backend.ir.irvalue
 
 enum VType:
   case i32

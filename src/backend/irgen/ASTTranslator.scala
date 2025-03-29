@@ -2,9 +2,9 @@ package backend.irgen.asttranslator
 
 import frontend.ast._
 import frontend.lex.WithSpan
-import backend.ir._
-import backend.control._
-import backend.irvalue._
+import backend.ir.ir._
+import backend.ir.control._
+import backend.ir.irvalue._
 import backend.irgen.irbuilder.BBuilder
 import backend.irgen.irbuilder.FnBuilder
 import scala.collection.mutable.HashMap
@@ -91,7 +91,8 @@ class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) extends AST
   ): Value =
     val vtype = astTypeToIR(tp)
     val rhs   = genNode(value)
-    val lhs   = Var(name, vtype)
+    // TODO: when typechecker is ready, fix or assert
+    val lhs = Var(name, rhs.vtype)
     blockBuilder.addInstr(Mov(lhs, rhs))
     lhs
 

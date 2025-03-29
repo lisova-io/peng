@@ -1,14 +1,14 @@
-package backend.control
+package backend.ir.control
 
-import backend.ir._
-import backend.irvalue._
+import backend.ir.ir._
+import backend.ir.irvalue._
 import backend.irgen.irbuilder._
 
 trait ControlFlow
 
 class Program(fns: Vector[Function]) extends ControlFlow
 
-case class BasicBlock(name: String, instrs: Vector[Instr]) extends Value with ControlFlow:
+case class BasicBlock(name: String, var instrs: Vector[Instr]) extends Value with ControlFlow:
   override def vtype: VType = VType.unit // idk
   override def toString: String =
     val sep = System.lineSeparator() + "  "

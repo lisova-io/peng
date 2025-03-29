@@ -1,5 +1,7 @@
 fn foo() { 
   val bar = 42;
+  val b = 41;
   val x = bar + 31 * (1 + 3 * bar);
+  val violet = x + bar + 31 + 42 * bar + x;
   return bar; 
 }
