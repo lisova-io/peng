@@ -70,11 +70,26 @@ enum BinOp extends Ordered[BinOp]:
     case Minus => 2
     case Mul   => 3
 
-sealed case class VarRefExpr(val name: WithSpan[Name])                           extends Expr
-sealed case class CallExpr(val name: WithSpan[Name], val args: List[Expr])       extends Expr
-sealed case class BinExpr(val op: WithSpan[BinOp], val lhs: Expr, val rhs: Expr) extends Expr
-sealed case class UnaryExpr(val op: WithSpan[UnaryOp], val expr: Expr)           extends Expr
-sealed case class NumLitExpr(val tp: Option[Type], val value: WithSpan[BigInt])  extends Expr
+sealed case class VarRefExpr(val name: WithSpan[Name]) extends Expr:
+  override def toString(): String =
+    s"${name.value}"
+sealed case class CallExpr(val name: WithSpan[Name], val args: List[Expr]) extends Expr:
+  override def toString: String =
+    s"(${name.value} (${args.mkString(", ")}))"
+sealed case class BinExpr(val op: WithSpan[BinOp], val lhs: Expr, val rhs: Expr) extends Expr:
+  override def toString: String =
+    val opStr = op.value match
+      case BinOp.Plus  => "+"
+      case BinOp.Minus => "-"
+      case BinOp.Mul   => "*"
+    s"($lhs $opStr $rhs)"
+sealed case class UnaryExpr(val op: WithSpan[UnaryOp], val expr: Expr) extends Expr:
+  override def toString: String =
+    val opStr = op.value match
+      case UnaryOp.Minus => "-"
+    s"($opStr $expr)"
+sealed case class NumLitExpr(val tp: Option[Type], val value: WithSpan[BigInt]) extends Expr:
+  override def toString: String = value.value.toString
 
 private def makeOffset(depth: Int) = print("  " * depth)
 
