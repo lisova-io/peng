@@ -22,7 +22,11 @@ import backend.opt.passes.trivialdce.TrivialDCE
   printAST(ast)
 
   val ir = DefaultTranslator(ast).gen
+  println("BEFORE PASSES:")
   ir.foreach((_, actual) => println(actual))
-  val pm = DefaultManager(ir).addPass(TrivialDCE()).perform
+  println("================================")
+  val newIR = DefaultManager(ir).addPass(TrivialDCE()).perform
+  println("AFTER:")
+  newIR.foreach((_, actual) => println(actual))
 
 }
