@@ -23,31 +23,72 @@ sealed trait ASTTranslator:
 
 sealed trait TranslatorCtx:
   def genVirtualReg(vtype: VType): Var
-  def genName: String
+  def genLabel: Label
+  def genIfThenLabel: Label
+  def genIfElseLabel: Label
+  def genLoopLabel: Label
+  def genLoopCondLabel: Label
+  def genLoopExitLabel: Label
 
 sealed class DefaultCtx extends TranslatorCtx:
-  var counter: Int = 0
+  var regCounter: Int         = 0
+  var labelCounter: Int       = 0
+  var ifThenLabelCounter: Int = 0
+  var ifElseLabelCounter: Int = 0
+  var loopCondCounter: Int    = 0
+  var loopLabelCounter: Int   = 0
+  var loopExitLabel: Int      = 0
+
+  def genLoopLabel: Label =
+    loopLabelCounter += 1
+    Label("%loop.body" + loopLabelCounter)
+
+  def genLoopExitLabel: Label =
+    loopExitLabel += 1
+    Label("%loop.exit" + loopLabelCounter)
+
+  def genLoopCondLabel: Label =
+    loopCondCounter += 1
+    Label("%loop.cond" + loopCondCounter.toString)
+
+  def genIfThenLabel: Label =
+    ifThenLabelCounter += 1
+    Label("%if.then" + ifThenLabelCounter.toString)
+
+  def genIfElseLabel: Label =
+    ifElseLabelCounter += 1
+    Label("%if.else" + ifElseLabelCounter.toString)
 
   def genVirtualReg(vtype: VType): Var =
-    counter += 1
-    Var("%" + counter.toString, vtype)
+    regCounter += 1
+    Var("%" + regCounter.toString, vtype)
 
-  def genName: String =
-    counter += 1
-    counter.toString
+  def genLabel: Label =
+    labelCounter += 1
+    Label("%" + labelCounter.toString)
 
 sealed class LoggingCtx extends DefaultCtx with StrictLogging:
   override def genVirtualReg(vtype: VType): Var =
-    logger.debug(s"call of genVirtualReg $vtype, prev counter $counter")
+    logger.debug(s"call of genVirtualReg $vtype, prev counter $regCounter")
     super.genVirtualReg(vtype)
-  override def genName: String =
-    logger.debug(s"call of genName, prev counter $counter")
-    super.genName
+  override def genLabel: Label =
+    logger.debug(s"call of genName, prev counter $labelCounter")
+    super.genLabel
 
 sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) extends ASTTranslator:
   val blockBuilder: BBuilder         = BBuilder()
   val fnBuilder: FnBuilder           = FnBuilder()
   val fns: HashMap[String, Function] = HashMap()
+
+  private def genPredicate(op: BinOp): Predicate =
+    op match
+      case BinOp.Eq => Predicate.eq
+      case BinOp.Ge => Predicate.ge
+      case BinOp.Gt => Predicate.gt
+      case BinOp.Le => Predicate.le
+      case BinOp.Lt => Predicate.lt
+      case BinOp.Ne => Predicate.neq
+      case _        => ???
 
   /*
    * Generate intermediate representation for binary expression.
@@ -69,6 +110,8 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
         blockBuilder.addInstr(Mul(dest, left, right))
       case BinOp.Assign =>
         blockBuilder.addInstr(Mov(left, right))
+      case BinOp.Lt | BinOp.Le | BinOp.Eq | BinOp.Ge | BinOp.Gt | BinOp.Ne =>
+        blockBuilder.addInstr(Cmp(dest, genPredicate(op), left, right))
     dest
 
   /*
@@ -122,11 +165,19 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
    * Ends the current basic block, builds it,
    * adds it to the current function builder.
    */
-  protected def blockEnd: Value =
+  protected def blockEnd: BasicBlock =
     val block = blockBuilder.build
     fnBuilder.addBlock(block)
     blockBuilder.reset
-    blockBuilder.setName(ctx.genName)
+    val label = ctx.genLabel
+    blockBuilder.setName(label)
+    block
+
+  protected def blockStart(next: Label): BasicBlock =
+    val block = blockBuilder.build
+    fnBuilder.addBlock(block)
+    blockBuilder.reset
+    blockBuilder.setName(next)
     block
 
   /*
@@ -160,6 +211,48 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
     fnBuilder.reset
     blockBuilder.reset
 
+  protected def genWhile(cond: Expr, body: BlockStmt): Value =
+    val condLabel = ctx.genLoopCondLabel
+    val bodyLabel = ctx.genLoopLabel
+    val endLabel  = ctx.genLoopExitLabel
+    blockStart(condLabel)
+    val condReg = genNode(cond)
+    blockBuilder.addInstr(Br(condReg, bodyLabel, endLabel))
+    blockStart(bodyLabel)
+    genNode(body)
+    blockBuilder.addInstr(Jmp(condLabel))
+    blockStart(endLabel)
+
+  protected def genIf(
+      cond: Expr,
+      onTrue: BlockStmt,
+      onFalse: Option[BlockStmt | IfStmt]
+  ): Label =
+    val condVal         = genNode(cond)
+    val trueLabel       = ctx.genIfThenLabel
+    val outLabel: Label = ctx.genIfElseLabel
+    blockBuilder.addInstr(Br(condVal, trueLabel, outLabel))
+    blockStart(trueLabel)
+    genNode(onTrue)
+    onFalse match
+      case Some(IfStmt(cond, onTrue, onFalse)) =>
+        val block       = blockStart(outLabel)
+        val newOutLabel = genIf(cond, onTrue, onFalse)
+        block.addInstruction(Jmp(newOutLabel))
+        newOutLabel
+      case None =>
+        blockBuilder.addInstr(Jmp(outLabel))
+        blockStart(outLabel)
+        outLabel
+      case Some(BlockStmt(block)) =>
+        val falseLabel = ctx.genLabel
+        blockBuilder.addInstr(Jmp(outLabel))
+        blockStart(falseLabel)
+        block.foreach(genNode(_))
+        blockStart(outLabel)
+        outLabel
+
+  // TODO: make it protected and log that shit
   private def genFunction(
       name: String,
       params: List[ASTFnArg],
@@ -168,8 +261,8 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
   ) =
     // fullReset
     fnBuilder.reset
-    fnBuilder.setName(name)
-    blockBuilder.setName(name)
+    fnBuilder.setName(name) // maybe have to do this label to. dk for now.
+    blockBuilder.setName(Label(name))
     val vtype = astTypeToIR(rtype)
     val paramsNoSpan = params.foreach((astArg, astType) => {
       val arg   = astArg.value
@@ -199,6 +292,8 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
       case ExprStmt(expr)                  => genNode(expr)
       case FnDecl(name, params, rettype, body) =>
         genFunction(name.value, params, rettype, body.block)
+      case WhileStmt(cond, body)         => genWhile(cond, body)
+      case IfStmt(cond, onTrue, onFalse) => genIf(cond, onTrue, onFalse)
       case _ =>
         println(s"genNode развал ${node.getClass().getName()}")
         ???
@@ -223,7 +318,7 @@ final class LoggingTranslator(ast: AST, ctx: TranslatorCtx = LoggingCtx())
   override protected def astTypeToIR(tp: ASTType): VType =
     logCall("astTypeToIR", super.astTypeToIR(tp), tp)
 
-  override protected def blockEnd: Value =
+  override protected def blockEnd: BasicBlock =
     logCall("blockEnd", super.blockEnd)
 
   override protected def genNodeBin(op: BinOp, lhs: Expr, rhs: Expr): Value =
