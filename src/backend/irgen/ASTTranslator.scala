@@ -319,7 +319,6 @@ final class LoggingTranslator(ast: AST, ctx: TranslatorCtx = LoggingCtx())
     logCall("astTypeToIR", super.astTypeToIR(tp), tp)
 
   override protected def blockEnd: BasicBlock =
->>>>>>> backend
     logCall("blockEnd", super.blockEnd)
 
   override protected def genNodeBin(op: BinOp, lhs: Expr, rhs: Expr): Value =

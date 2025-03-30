@@ -4,19 +4,13 @@ enum VType:
   case i32
   case bool
   case unit
-<<<<<<< HEAD
-=======
   case label
->>>>>>> backend
   override def toString: String =
     this.ordinal match
       case 0 => "i32"
       case 1 => "bool"
       case 2 => "void"
-<<<<<<< HEAD
-=======
       case 3 => "label"
->>>>>>> backend
 
 abstract class Value:
   def vtype: VType
