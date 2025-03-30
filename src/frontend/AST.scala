@@ -26,7 +26,7 @@ sealed case class FnDecl(
     val name: WithSpan[Name],
     val params: List[(WithSpan[Name], WithSpan[Type])],
     val rettype: Option[WithSpan[Type]],
-    val body: Block
+    val body: BlockStmt
 ) extends Decl:
   override def getName: WithSpan[Name] = name
 
@@ -40,9 +40,18 @@ sealed case class VarDecl(
 
 sealed case class ExprStmt(val expr: Expr)    extends Stmt
 sealed case class BlockStmt(val block: Block) extends Stmt
-sealed case class DeclStmt(val decl: Decl)    extends Stmt
-sealed case class RetStmt(val expr: Expr)     extends Stmt
-case object VoidRetStmt                       extends Stmt
+sealed case class IfStmt(
+    val cond: Expr,
+    val onTrue: BlockStmt,
+    val onFalse: Option[BlockStmt | IfStmt]
+) extends Stmt
+sealed case class WhileStmt(
+    val cond: Expr,
+    val body: BlockStmt
+) extends Stmt
+sealed case class DeclStmt(val decl: Decl) extends Stmt
+sealed case class RetStmt(val expr: Expr)  extends Stmt
+case object VoidRetStmt                    extends Stmt
 
 type Precedence = Int
 
@@ -57,18 +66,21 @@ enum BinOp extends Ordered[BinOp]:
   case Plus
   case Minus
   case Mul
+  case Assign
 
   override def toString(): String =
     this match
-      case Plus  => "+"
-      case Minus => "-"
-      case Mul   => "*"
+      case Plus   => "+"
+      case Minus  => "-"
+      case Mul    => "*"
+      case Assign => "="
 
   override def compare(that: BinOp): Int = this.precedence compare that.precedence
   def precedence: Precedence = this match
-    case Plus  => 2
-    case Minus => 2
-    case Mul   => 3
+    case Plus   => 2
+    case Minus  => 2
+    case Mul    => 3
+    case Assign => 1
 
 sealed case class VarRefExpr(val name: WithSpan[Name]) extends Expr:
   override def toString(): String =
@@ -79,9 +91,10 @@ sealed case class CallExpr(val name: WithSpan[Name], val args: List[Expr]) exten
 sealed case class BinExpr(val op: WithSpan[BinOp], val lhs: Expr, val rhs: Expr) extends Expr:
   override def toString: String =
     val opStr = op.value match
-      case BinOp.Plus  => "+"
-      case BinOp.Minus => "-"
-      case BinOp.Mul   => "*"
+      case BinOp.Plus   => "+"
+      case BinOp.Minus  => "-"
+      case BinOp.Mul    => "*"
+      case BinOp.Assign => "="
     s"($lhs $opStr $rhs)"
 sealed case class UnaryExpr(val op: WithSpan[UnaryOp], val expr: Expr) extends Expr:
   override def toString: String =
@@ -126,6 +139,15 @@ def printStmt(stmt: Stmt, depth: Int): Unit =
     case RetStmt(e) =>
       println("RetStmt")
       printExpr(e, depth + 1)
+    case IfStmt(cond, onTrue, onFalse) =>
+      println("IfStmt")
+      printExpr(cond, depth + 1)
+      printStmt(onTrue, depth + 1)
+      if onFalse.isDefined then printStmt(onFalse.get, depth + 1)
+    case WhileStmt(cond, body) =>
+      println("WhileStmt")
+      printExpr(cond, depth + 1)
+      printStmt(body, depth + 1)
     case VoidRetStmt => println("VoidRetStmt")
 
 def printDecl(decl: Decl, depth: Int = 0): Unit =
@@ -135,7 +157,7 @@ def printDecl(decl: Decl, depth: Int = 0): Unit =
       println(
         s"FnDecl $name(${params.map(p => s"${p._1.value}: ${p._2.value}").mkString(", ")}) ${rettype.map(_.value).getOrElse("")}"
       )
-      body.foreach(s => printStmt(s, depth + 1))
+      body.block.foreach(s => printStmt(s, depth + 1))
     case VarDecl(const, WithSpan(name, _), tp, value) =>
       println(
         s"VarDecl ${if const then "val" else "var"} $name ${tp.map(_.value).getOrElse("UNDEF")}"

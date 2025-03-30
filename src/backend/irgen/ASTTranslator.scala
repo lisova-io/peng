@@ -57,15 +57,19 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
   protected def genNodeBin(op: BinOp, lhs: Expr, rhs: Expr): Value =
     val left  = genNode(lhs)
     val right = genNode(rhs)
-    val vreg  = ctx.genVirtualReg(VType.i32)
+    val dest = op match
+      case BinOp.Assign => left
+      case _            => ctx.genVirtualReg(VType.i32)
     op match
       case BinOp.Plus =>
-        blockBuilder.addInstr(Add(vreg, left, right))
+        blockBuilder.addInstr(Add(dest, left, right))
       case BinOp.Minus =>
-        blockBuilder.addInstr(Sub(vreg, left, right))
+        blockBuilder.addInstr(Sub(dest, left, right))
       case BinOp.Mul =>
-        blockBuilder.addInstr(Mul(vreg, left, right))
-    vreg
+        blockBuilder.addInstr(Mul(dest, left, right))
+      case BinOp.Assign =>
+        blockBuilder.addInstr(Mov(left, right))
+    dest
 
   /*
    * Internal function that transforms type from representation it is
@@ -136,17 +140,16 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
   protected def genNodeRet(): Value =
     val void = Void()
     blockBuilder.addInstr(Ret(void))
-    blockEnd
     void
 
   protected def genNodeRet(expr: Expr): Value =
     val value = genNode(expr)
     blockBuilder.addInstr(Ret(value))
-    blockEnd
     value
 
   protected def genBlock(block: Block): Value =
     block.foreach(genNode(_))
+    blockEnd
     Void()
 
   protected def genVarRef(name: String): Value =
@@ -172,26 +175,29 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
       val vtype = astTypeToIR(Some(astType))
       fnBuilder.addArg(Var(arg, vtype))
     })
-    val irBody = body.foreach(genNode(_))
+    val irBody = genBlock(body)
     fnEnd
 
   def genDecl(decl: Decl): Value =
     decl match
-      case VarDecl(const, name, tp, value)     => genNodeVDecl(const, name.value, tp, value)
-      case FnDecl(name, params, rettype, body) => genFunction(name.value, params, rettype, body)
+      case VarDecl(const, name, tp, value) => genNodeVDecl(const, name.value, tp, value)
+      case FnDecl(name, params, rettype, body) =>
+        genFunction(name.value, params, rettype, body.block)
 
   def genNode(node: AstNode): Value =
     node match
-      case NumLitExpr(tp, value)               => ImmInt(value.value)
-      case BinExpr(op, lhs, rhs)               => genNodeBin(op.value, lhs, rhs)
-      case CallExpr(name, args)                => genNodeCall(name.value, args)
-      case VarDecl(const, name, tp, value)     => genNodeVDecl(const, name.value, tp, value)
-      case RetStmt(expr)                       => genNodeRet(expr)
-      case VoidRetStmt                         => genNodeRet()
-      case BlockStmt(block)                    => genBlock(block)
-      case VarRefExpr(name)                    => genVarRef(name.value)
-      case DeclStmt(decl)                      => genDecl(decl)
-      case FnDecl(name, params, rettype, body) => genFunction(name.value, params, rettype, body)
+      case NumLitExpr(tp, value)           => ImmInt(value.value)
+      case BinExpr(op, lhs, rhs)           => genNodeBin(op.value, lhs, rhs)
+      case CallExpr(name, args)            => genNodeCall(name.value, args)
+      case VarDecl(const, name, tp, value) => genNodeVDecl(const, name.value, tp, value)
+      case RetStmt(expr)                   => genNodeRet(expr)
+      case VoidRetStmt                     => genNodeRet()
+      case BlockStmt(block)                => genBlock(block)
+      case VarRefExpr(name)                => genVarRef(name.value)
+      case DeclStmt(decl)                  => genDecl(decl)
+      case ExprStmt(expr)                  => genNode(expr)
+      case FnDecl(name, params, rettype, body) =>
+        genFunction(name.value, params, rettype, body.block)
       case _ =>
         println(s"genNode развал ${node.getClass().getName()}")
         ???

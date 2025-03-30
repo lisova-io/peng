@@ -5,6 +5,9 @@ enum Token:
   case Val
   case Var
   case Return
+  case If
+  case Else
+  case While
 
   case Identifier(val value: String)
   case Number(val value: BigInt)
@@ -27,7 +30,8 @@ enum Token:
       case (Fn, Fn) | (Val, Val) | (Var, Var) | (Return, Return) | (Identifier(_), Identifier(_)) |
           (Number(_), Number(_)) | (LParen, LParen) | (RParen, RParen) | (LBrace, LBrace) |
           (RBrace, RBrace) | (Comma, Comma) | (Dot, Dot) | (Colon, Colon) | (Semicolon, Semicolon) |
-          (Plus, Plus) | (Minus, Minus) | (Asterisk, Asterisk) | (Assign, Assign) =>
+          (Plus, Plus) | (Minus, Minus) | (Asterisk, Asterisk) | (Assign, Assign) | (If, If) |
+          (Else, Else) | (While, While) =>
         true
       case _ => false
 
@@ -38,6 +42,9 @@ enum Token:
       case Val                              => "`val`"
       case Var                              => "`var`"
       case Return                           => "`return`"
+      case If                               => "`if`"
+      case Else                             => "`else`"
+      case While                            => "`while`"
       case frontend.lex.Token.Identifier(_) => "identifier"
       case frontend.lex.Token.Number(_)     => "number"
       case LParen                           => "`(`"

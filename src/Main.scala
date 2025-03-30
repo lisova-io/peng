@@ -37,9 +37,10 @@ val mode = Mode.Debug
   val translator = overseer.getTranslator(ast)
 
   val ir = translator.gen
+  ir.foreach((_, actual) => println(actual))
 
   val passmanager = overseer.getPassManager(ir)
 
-  val newIR = passmanager.addPass(TrivialDCE()).perform
+  // val newIR = passmanager.addPass(TrivialDCE()).perform
   // newIR.foreach((_, actual) => println(actual))
 }
