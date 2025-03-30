@@ -66,14 +66,15 @@ case object VoidRetStmt                    extends Stmt
 
 type Precedence = Int
 
-enum UnaryOp:
+enum UnaryOp {
   case Minus
 
   override def toString(): String =
     this match
       case Minus => "-"
+}
 
-enum BinOp extends Ordered[BinOp]:
+enum BinOp extends Ordered[BinOp] {
   case Plus
   case Minus
   case Mul
@@ -99,21 +100,27 @@ enum BinOp extends Ordered[BinOp]:
       case Ge     => ">="
 
   override def compare(that: BinOp): Int = this.precedence compare that.precedence
+
   def precedence: Precedence = this match
     case Assign            => 1
     case Lt | Le | Gt | Ge => 2
     case Eq | Ne           => 3
     case Plus | Minus      => 4
     case Mul               => 5
+}
 
 sealed case class VarRefExpr(val name: WithSpan[Name]) extends Expr:
   override def toString(): String = s"${name.value}"
+
 sealed case class CallExpr(val name: WithSpan[Name], val args: List[Expr]) extends Expr:
   override def toString: String = s"(${name.value} (${args.mkString(", ")}))"
+
 sealed case class BinExpr(val op: WithSpan[BinOp], val lhs: Expr, val rhs: Expr) extends Expr:
   override def toString: String = s"($lhs ${op.value} $rhs)"
+
 sealed case class UnaryExpr(val op: WithSpan[UnaryOp], val expr: Expr) extends Expr:
   override def toString: String = s"(${op.value} $expr)"
+
 sealed case class NumLitExpr(val tp: Option[Type], val value: WithSpan[BigInt]) extends Expr:
   override def toString: String = value.value.toString
 
