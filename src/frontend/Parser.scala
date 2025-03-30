@@ -71,8 +71,8 @@ class DefaultParser(lexer: Lexer) extends Parser:
   private def parseType: ParseResult[WithSpan[Type]] =
     token(
       _ match
-        case Token.Identifier(value) => Some(value)
-        case _                       => None
+        case Token.Identifier(s) => Type.fromString(s)
+        case _                   => None
       ,
       "type"
     )
@@ -80,8 +80,8 @@ class DefaultParser(lexer: Lexer) extends Parser:
   private def tryParseType: Option[WithSpan[Type]] =
     peekToken(
       _ match
-        case Token.Identifier(value) => Some(value)
-        case _                       => None
+        case Token.Identifier(s) => Type.fromString(s)
+        case _                   => None
       ,
       "type"
     ) match
@@ -189,6 +189,12 @@ class DefaultParser(lexer: Lexer) extends Parser:
         case Token.Minus    => Some(BinOp.Minus)
         case Token.Asterisk => Some(BinOp.Mul)
         case Token.Assign   => Some(BinOp.Assign)
+        case Token.Eq       => Some(BinOp.Eq)
+        case Token.Ne       => Some(BinOp.Ne)
+        case Token.Le       => Some(BinOp.Le)
+        case Token.Lt       => Some(BinOp.Lt)
+        case Token.Gt       => Some(BinOp.Gt)
+        case Token.Ge       => Some(BinOp.Ge)
         case _              => None
 
     def getCurPrecedence: Precedence = lexer.peek
@@ -405,7 +411,18 @@ class DefaultParser(lexer: Lexer) extends Parser:
         params <- parseParams
         rettype = tryParseType
         body <- parseBlock
-      } yield FnDecl(name, params, rettype, body)
+      } yield FnDecl(
+        name,
+        params,
+        rettype,
+        if rettype.isEmpty && body.block.lastOption
+            .filter(_ match
+              case VoidRetStmt => true
+              case _           => false)
+            .isEmpty
+        then BlockStmt(body.block :+ VoidRetStmt)
+        else body
+      )
     )
   }
 
