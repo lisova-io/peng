@@ -24,7 +24,12 @@ class WithSpan[T](val value: T, val span: Span):
 object WithSpan:
   def unapply[T](ws: WithSpan[T]): (T, Span) = (ws.value, ws.span)
 
-class Lexer(val input: String):
+trait Lexer:
+  def next: Option[WithSpan[Token]]
+  def peek: Option[WithSpan[Token]]
+  def endSpan: Span
+
+class DefaultLexer(val input: String) extends Lexer:
   private var offset: Offset = 0
 
   private def peekChar: Option[Char] = if offset < input.length then Some(input(offset)) else None

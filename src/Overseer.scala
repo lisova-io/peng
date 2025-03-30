@@ -11,15 +11,43 @@ import backend.ir.control.Function
 import backend.irgen.asttranslator.DefaultTranslator
 import backend.opt.passmanager.Program
 import backend.opt.passmanager.LoggingManager
+import backend.opt.passsetup.OptLevel
+import backend.opt.passsetup.PassSetup
+import frontend.lex.Lexer
+import frontend.lex.DefaultLexer
+import frontend.parse.Parser
+import frontend.parse.DefaultParser
+import com.typesafe.scalalogging.StrictLogging
 
 trait Overseer:
   def getTranslator(ast: AST): ASTTranslator
-  def getPassManager(program: Program): PassManager
+  def getPassManager(program: Program, level: OptLevel): PassManager
+  def getLexer(input: String): Lexer
+  def getParser(lexer: Lexer): Parser
 
-object DebugOverseer extends Overseer:
-  def getTranslator(ast: AST)          = LoggingTranslator(ast)
-  def getPassManager(program: Program) = LoggingManager(program)
+object DebugOverseer extends Overseer with StrictLogging:
+  def getLexer(input: String): Lexer =
+    val lexer = DefaultLexer(input)
+    logger.warn(s"Using DEFAULT class ${lexer.getClass().getName()} in debug mode")
+    lexer
+
+  def getParser(lexer: Lexer): Parser =
+    val parser = DefaultParser(lexer)
+    logger.warn(s"Using DEFAULT class ${parser.getClass().getName()} in debug mode")
+    parser
+
+  def getTranslator(ast: AST) = LoggingTranslator(ast)
+
+  def getPassManager(program: Program, level: OptLevel) =
+    PassSetup(LoggingManager(program), level).configure
 
 object DefaultOverseer extends Overseer:
+  def getLexer(input: String): Lexer =
+    DefaultLexer(input)
+
+  def getParser(lexer: Lexer): Parser = DefaultParser(lexer)
+
   def getTranslator(ast: AST): ASTTranslator = DefaultTranslator(ast)
-  def getPassManager(program: Program)       = DefaultManager(program)
+
+  def getPassManager(program: Program, level: OptLevel) =
+    PassSetup(DefaultManager(program), level).configure
