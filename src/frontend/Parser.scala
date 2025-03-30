@@ -185,6 +185,7 @@ class Parser(lexer: Lexer):
         case Token.Plus     => Some(BinOp.Plus)
         case Token.Minus    => Some(BinOp.Minus)
         case Token.Asterisk => Some(BinOp.Mul)
+        case Token.Assign   => Some(BinOp.Assign)
         case _              => None
 
     def getCurPrecedence: Precedence = lexer.peek
@@ -231,9 +232,55 @@ class Parser(lexer: Lexer):
         if hasExpr then parseExpr.map(e => RetStmt(e)) else Right(VoidRetStmt)
       })
 
+  private def parseIfStmt: ParseResult[IfStmt] = {
+    def parseIfOrBlock: ParseResult[BlockStmt | IfStmt] =
+      for {
+        isIf <- peekToken(
+          _ match
+            case Token.If     => Some(true)
+            case Token.LBrace => Some(false)
+            case _            => None,
+          "statement"
+        )
+        res <- if isIf.value then parseIfStmt else parseBlock
+      } yield res
+
+    def parseElse: ParseResult[Option[BlockStmt | IfStmt]] =
+      peekToken(_ match
+        case Token.Else => Some(true)
+        case _          => Some(false))
+        .flatMap(hasElse =>
+          if !hasElse.value
+          then Right(None)
+          else {
+            lexer.next
+            parseIfOrBlock.map(Some(_))
+          }
+        )
+
+    token(matchToken(Token.If), Token.If).andThen(
+      for {
+        cond    <- parseExpr
+        onTrue  <- parseBlock
+        onFalse <- parseElse
+      } yield IfStmt(cond, onTrue, onFalse)
+    )
+  }
+
+  private def parseWhileStmt: ParseResult[WhileStmt] = {
+    token(matchToken(Token.While), Token.While).andThen(
+      for {
+        cond <- parseExpr
+        body <- parseBlock
+      } yield WhileStmt(cond, body)
+    )
+  }
+
   private def parseStmt: ParseResult[Stmt] = {
     enum StmtType {
       case Expr
+      case If
+      case While
       case Block
       case Decl
       case Ret
@@ -244,18 +291,22 @@ class Parser(lexer: Lexer):
         case Token.LBrace            => Some(StmtType.Block)
         case (Token.Val | Token.Var) => Some(StmtType.Decl)
         case Token.Return            => Some(StmtType.Ret)
+        case Token.If                => Some(StmtType.If)
+        case Token.While             => Some(StmtType.While)
         case _                       => Some(StmtType.Expr)
     ).flatMap(ws =>
       val WithSpan(s, _) = ws
       s match
         case StmtType.Expr  => parseExpr.map(e => ExprStmt(e))
-        case StmtType.Block => parseBlock.map(b => BlockStmt(b))
+        case StmtType.Block => parseBlock
+        case StmtType.If    => parseIfStmt
+        case StmtType.While => parseWhileStmt
         case StmtType.Decl  => parseVarDecl.map(d => DeclStmt(d))
         case StmtType.Ret   => parseRetStmt
     )
   }
 
-  private def parseBlock: ParseResult[Block] = {
+  private def parseBlock: ParseResult[BlockStmt] = {
     def block = boundary {
       var block: Block = List()
 
@@ -282,8 +333,8 @@ class Parser(lexer: Lexer):
             case Right(stmt) =>
               block :+= stmt
               stmt match
-                case BlockStmt(_) => false
-                case _            => true
+                case BlockStmt(_) | IfStmt(_, _, _) | WhileStmt(_, _) => false
+                case _                                                => true
 
         if shouldExpectSemi then
           semi match
@@ -293,7 +344,7 @@ class Parser(lexer: Lexer):
       Right(block)
     }
 
-    token(matchToken(Token.LBrace), Token.LBrace).andThen(block)
+    token(matchToken(Token.LBrace), Token.LBrace).andThen(block.map(BlockStmt(_)))
   }
 
   private def parseFnDecl: ParseResult[FnDecl] = {

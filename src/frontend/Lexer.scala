@@ -12,7 +12,8 @@ class Span(val b: Offset, val e: Offset):
   def len: Offset = e - b + 1
 
 implicit object SpanOrdering extends Ordering[Span]:
-  override def compare(x: Span, y: Span): Int = if x.b == y.b then x.e compare y.e else x.b compare y.b
+  override def compare(x: Span, y: Span): Int =
+    if x.b == y.b then x.e compare y.e else x.b compare y.b
 
 object Span:
   def unapply(s: Span): (Offset, Offset) = (s.b, s.e)
@@ -71,6 +72,9 @@ class Lexer(val input: String):
               case "val"    => Token.Val           -> Span(b, b + 2)
               case "var"    => Token.Var           -> Span(b, b + 2)
               case "return" => Token.Return        -> Span(b, b + 5)
+              case "if"     => Token.If            -> Span(b, b + 1)
+              case "else"   => Token.Else          -> Span(b, b + 3)
+              case "while"  => Token.While         -> Span(b, b + 4)
               case s        => Token.Identifier(s) -> Span(b, b + s.length - 1)
           }
           case c if c.isDigit => {
