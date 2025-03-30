@@ -30,7 +30,7 @@ case class Var(input: String, vartype: VType) extends Value:
   def vtype: VType              = vartype
   override def toString: String = s"$input"
 
-case class Label(name: String) extends Value:
+case class Label(val name: String) extends Value:
   def vtype: VType              = VType.label
   override def toString: String = s"$name"
 

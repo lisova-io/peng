@@ -28,14 +28,14 @@ class BBuilder extends Builder[BasicBlock]:
 
 class FnBuilder extends Builder[Function]:
   var blocks: Vector[BasicBlock]           = Vector()
-  var name: String                         = String()
+  var name: Label                          = Label(String())
   var args: List[Value]                    = List()
   var vtype: VType                         = VType.unit
   var blockMap: HashMap[Label, BasicBlock] = HashMap()
   def addBlock(block: BasicBlock): FnBuilder =
     blocks :+= block
     this
-  def setName(name: String): FnBuilder =
+  def setName(name: Label): FnBuilder =
     this.name = name
     this
   def addArg(arg: Value): FnBuilder =
@@ -46,7 +46,7 @@ class FnBuilder extends Builder[Function]:
     this
   def reset: FnBuilder =
     blocks = Vector()
-    name = String()
+    name = Label(String())
     args = List()
     vtype = VType.unit
     blockMap = HashMap()

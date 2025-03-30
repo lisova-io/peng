@@ -1,6 +1,5 @@
 package codegen.spec
 
-// mayhaps there will be aarch.
 enum CallConvention:
   case RV
   case SystemV

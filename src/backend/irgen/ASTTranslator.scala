@@ -19,7 +19,7 @@ type ASTFnArg = (WithSpan[String], WithSpan[Type])
 
 sealed trait ASTTranslator:
   def genNode(node: AstNode): Value
-  def gen: HashMap[String, Function]
+  def gen: Program
 
 sealed trait TranslatorCtx:
   def genVirtualReg(vtype: VType): Var
@@ -185,7 +185,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
    */
   protected def fnEnd: Value =
     val fn = fnBuilder.build
-    fns.addOne((fn.name, fn))
+    fns.addOne((fn.name.name, fn))
     fn
 
   protected def genNodeRet(): Value =
@@ -261,7 +261,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
   ) =
     // fullReset
     fnBuilder.reset
-    fnBuilder.setName(name) // maybe have to do this label to. dk for now.
+    fnBuilder.setName(Label(name)) // maybe have to do this label to. dk for now.
     blockBuilder.setName(Label(name))
     val vtype = astTypeToIR(rtype)
     val paramsNoSpan = params.foreach((astArg, astType) => {
@@ -298,9 +298,9 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
         println(s"genNode развал ${node.getClass().getName()}")
         ???
 
-  def gen: HashMap[String, Function] =
+  def gen: Program =
     ast.foreach((_, decl) => genNode(decl))
-    fns
+    Program(fns)
 
 /*
  *
@@ -339,7 +339,7 @@ final class LoggingTranslator(ast: AST, ctx: TranslatorCtx = LoggingCtx())
   override protected def genNodeRet(): Value =
     logCall("genNodeRet(void)", super.genNodeRet())
 
-  override def gen: HashMap[String, Function] =
+  override def gen: Program =
     logCall("gen", super.gen)
 
   override protected def genNodeRet(expr: Expr): Value =

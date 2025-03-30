@@ -80,7 +80,7 @@ case class Mov(lhs: Value, rhs: Value) extends Value with Instr with UnaryOp wit
   override def toString: String =
     s"$lhs = mov $vtype $rhs;"
 
-case class Call(dest: Value, fn: Value, args: List[Value]) extends Value with Instr with VarOp:
+case class Call(dest: Value, fn: Label, args: List[Value]) extends Value with Instr with VarOp:
   def getArgs: List[Value]  = args
   override def vtype: VType = dest.vtype
   override def toString: String =

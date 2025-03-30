@@ -9,7 +9,6 @@ import backend.opt.passmanager.DefaultManager
 import scala.collection.mutable.HashMap
 import backend.ir.control.Function
 import backend.irgen.asttranslator.DefaultTranslator
-import backend.opt.passmanager.Program
 import backend.opt.passmanager.LoggingManager
 import backend.opt.passsetup.OptLevel
 import backend.opt.passsetup.PassSetup
@@ -18,6 +17,7 @@ import frontend.lex.DefaultLexer
 import frontend.parse.Parser
 import frontend.parse.DefaultParser
 import com.typesafe.scalalogging.StrictLogging
+import backend.ir.control.Program
 
 trait Overseer:
   def getTranslator(ast: AST): ASTTranslator

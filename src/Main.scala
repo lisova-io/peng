@@ -16,9 +16,13 @@ enum Mode:
   case Default
   case Debug
 
+enum Arch:
+  case X86
+
 // TODO: get this settings from cli args
 val mode     = Mode.Debug
 val optLevel = OptLevel.FullOpt
+val arch     = Arch.X86
 
 @main def main(): Unit = {
 
@@ -45,7 +49,7 @@ val optLevel = OptLevel.FullOpt
   val translator = overseer.getTranslator(ast)
 
   val ir = translator.gen
-  ir.foreach((_, actual) => println(actual))
+  print(ir)
 
   val passmanager = overseer.getPassManager(ir, optLevel)
 

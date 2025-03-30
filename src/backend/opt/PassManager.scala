@@ -4,8 +4,6 @@ import scala.collection.mutable.HashMap
 import backend.ir.control._
 import com.typesafe.scalalogging.StrictLogging
 
-type Program = HashMap[String, Function]
-
 sealed trait PassManager:
   def addPass(pass: Pass): PassManager
   def perform: Program
@@ -24,17 +22,19 @@ sealed class DefaultManager(program: Program) extends PassManager:
     passes :+= pass
     this
   protected def localPass(pass: LocalPass): Program =
-    program
+    program.fns
       .map((name, fn) => {
         val new_blocks = fn.blocks.map(pass.pass(_))
         (name, fn.copy(blocks = new_blocks))
       })
+    program
 
   protected def globalPass(pass: GlobalPass): Program =
-    program
+    program.fns
       .map((name, fn) => {
         (name, pass.pass(fn))
       })
+    program
 
   protected def performPass(pass: Pass): Program =
     pass match
