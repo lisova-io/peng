@@ -86,27 +86,30 @@ case class Call(dest: Value, fn: Value, args: List[Value]) extends Value with In
   override def toString: String =
     s"$dest = call $vtype $fn" + args.foldLeft((acc: String, arg: Value) => acc + " " + arg) + ";"
 
-case class Jmp(label: Value) extends Value with Instr:
+case class Jmp(label: Label) extends Value with Instr:
   override def vtype: VType = VType.unit
   override def toString: String =
     s"jmp $label"
 
-case class Br(cond: Value, tbranch: Value, fbranch: Value) extends Value with Instr with UnaryOp:
+case class Br(cond: Value, tbranch: Label, fbranch: Label) extends Value with Instr with UnaryOp:
   override def getArg: Value = cond
-  override def vtype: VType  = VType.unit
+  override def vtype: VType  = cond.vtype
   override def toString: String =
-    s"br $cond $tbranch $fbranch"
+    s"br $vtype $cond, $tbranch ${tbranch.vtype}, $fbranch ${fbranch.vtype}"
 
 case class Ret(ret: Value) extends Value with Instr with UnaryOp:
   def getArg: Value         = ret
-  override def vtype: VType = VType.unit
+  override def vtype: VType = ret.vtype
   override def toString: String =
     s"ret $vtype $ret;"
 
 enum Predicate:
   case eq
+  case neq
   case lt
   case gt
+  case le
+  case ge
 
 case class Cmp(dest: Value, pred: Predicate, lhs: Value, rhs: Value)
     extends Value

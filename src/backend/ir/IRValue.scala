@@ -4,11 +4,19 @@ enum VType:
   case i32
   case bool
   case unit
+<<<<<<< HEAD
+=======
+  case label
+>>>>>>> backend
   override def toString: String =
     this.ordinal match
       case 0 => "i32"
       case 1 => "bool"
       case 2 => "void"
+<<<<<<< HEAD
+=======
+      case 3 => "label"
+>>>>>>> backend
 
 abstract class Value:
   def vtype: VType
@@ -29,7 +37,7 @@ case class Var(input: String, vartype: VType) extends Value:
   override def toString: String = s"$input"
 
 case class Label(name: String) extends Value:
-  def vtype: VType              = VType.unit
+  def vtype: VType              = VType.label
   override def toString: String = s"$name"
 
 case class Void() extends Value:

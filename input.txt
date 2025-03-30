@@ -1,7 +1,17 @@
 fn foo() { 
-  var i = 0;
-  while i < 42 {
-    i = i + 1;
+  var a = 37;
+  var b = a == 0;
+  if b > a {
+    a = a + b;
   }
-  return i;
+  if a == b {
+    a = a + b;
+  } else if b == a {
+    d = b + a;
+  } else if a == b {
+    c = b + a;
+  }
+  while i == 0 {
+    a = b + a;
+  }
 }

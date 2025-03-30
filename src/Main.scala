@@ -40,7 +40,7 @@ val optLevel = OptLevel.FullOpt
   printDiagnostics(input, diagnostics)
   if diagnostics.containsErrors then return
 
-  // printAST(ast)
+  printAST(ast)
 
   val translator = overseer.getTranslator(ast)
 
