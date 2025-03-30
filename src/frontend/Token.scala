@@ -24,6 +24,12 @@ enum Token:
   case Minus
   case Asterisk
   case Assign
+  case Eq
+  case Ne
+  case Lt
+  case Le
+  case Gt
+  case Ge
 
   def is(that: Token): Boolean =
     (this, that) match
@@ -31,13 +37,13 @@ enum Token:
           (Number(_), Number(_)) | (LParen, LParen) | (RParen, RParen) | (LBrace, LBrace) |
           (RBrace, RBrace) | (Comma, Comma) | (Dot, Dot) | (Colon, Colon) | (Semicolon, Semicolon) |
           (Plus, Plus) | (Minus, Minus) | (Asterisk, Asterisk) | (Assign, Assign) | (If, If) |
-          (Else, Else) | (While, While) =>
+          (Else, Else) | (While, While) | (Eq, Eq) | (Ne, Ne) | (Lt, Lt) | (Le, Le) | (Gt, Gt) |
+          (Ge, Ge) =>
         true
       case _ => false
 
   override def toString(): String =
     this match
-      case Assign                           => "`=`"
       case Fn                               => "`fn`"
       case Val                              => "`val`"
       case Var                              => "`var`"
@@ -58,3 +64,10 @@ enum Token:
       case Plus                             => "`+`"
       case Minus                            => "`-`"
       case Asterisk                         => "`*`"
+      case Assign                           => "`=`"
+      case Eq                               => "`==`"
+      case Ne                               => "`!=`"
+      case Lt                               => "`<`"
+      case Le                               => "`<=`"
+      case Gt                               => "`>`"
+      case Ge                               => "`>=`"

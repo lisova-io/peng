@@ -70,7 +70,30 @@ class DefaultLexer(val input: String) extends Lexer:
           case '+' => Token.Plus      -> Span(b, b)
           case '-' => Token.Minus     -> Span(b, b)
           case '*' => Token.Asterisk  -> Span(b, b)
-          case '=' => Token.Assign    -> Span(b, b)
+          case '=' =>
+            peekChar
+              .filter(_ == '=')
+              .map(_ => {
+                nextChar
+                Token.Eq -> Span(b, b + 1)
+              })
+              .getOrElse(Token.Assign -> Span(b, b))
+          case '<' =>
+            peekChar
+              .filter(_ == '=')
+              .map(_ => {
+                nextChar
+                Token.Le -> Span(b, b + 1)
+              })
+              .getOrElse(Token.Assign -> Span(b, b))
+          case '>' =>
+            peekChar
+              .filter(_ == '=')
+              .map(_ => {
+                nextChar
+                Token.Ge -> Span(b, b + 1)
+              })
+              .getOrElse(Token.Assign -> Span(b, b))
           case c if c.isIdentifierStart => {
             (c + getWhile(_.isIdentifierChar)) match
               case "fn"     => Token.Fn            -> Span(b, b + 1)

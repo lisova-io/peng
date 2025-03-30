@@ -14,8 +14,8 @@ import scala.collection.mutable
 // TODO: Generic wrap for logging
 
 type AST      = HashMap[Name, Decl]
-type ASTType  = Option[WithSpan[String]]
-type ASTFnArg = (WithSpan[String], WithSpan[String])
+type ASTType  = Option[WithSpan[Type]]
+type ASTFnArg = (WithSpan[String], WithSpan[Type])
 
 sealed trait ASTTranslator:
   def genNode(node: AstNode): Value
@@ -76,10 +76,10 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
    * in AST to the type that is used in IR
    */
   protected def astTypeToIR(tp: ASTType): VType =
-    def getType(str: String): VType =
-      str match
-        case "int"  => VType.i32
-        case "bool" => VType.bool
+    def getType(t: Type): VType =
+      t match
+        case Type.I32  => VType.i32
+        case Type.Bool => VType.bool
     tp.map(span => getType(span.value)).getOrElse(VType.unit)
 
   /*
@@ -140,16 +140,17 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
   protected def genNodeRet(): Value =
     val void = Void()
     blockBuilder.addInstr(Ret(void))
+    blockEnd
     void
 
   protected def genNodeRet(expr: Expr): Value =
     val value = genNode(expr)
     blockBuilder.addInstr(Ret(value))
+    blockEnd
     value
 
   protected def genBlock(block: Block): Value =
     block.foreach(genNode(_))
-    blockEnd
     Void()
 
   protected def genVarRef(name: String): Value =
