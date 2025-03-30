@@ -23,7 +23,10 @@ private def expected[A](span: Span, expected: Any*): Diagnostic = {
   Diagnostic.error(span, s"expected ${formatExpected(expected)}")
 }
 
-class Parser(lexer: Lexer):
+trait Parser:
+  def parse: (AST, List[Diagnostic])
+
+class DefaultParser(lexer: Lexer) extends Parser:
   private def matchToken[T](tok: Token, value: T = ()): Token => Option[T] =
     t => if t.is(tok) then Some(value) else None
 

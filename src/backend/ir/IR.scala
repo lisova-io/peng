@@ -26,7 +26,7 @@ case class Add(dest: Value, lhs: Value, rhs: Value)
   def getArgs: (Value, Value) = (lhs, rhs)
   override def vtype: VType   = dest.vtype
   override def toString: String =
-    s"$dest = add $lhs, $rhs;"
+    s"$dest = add $vtype $lhs, $rhs;"
 
 case class Sub(dest: Value, lhs: Value, rhs: Value)
     extends Value
@@ -38,7 +38,7 @@ case class Sub(dest: Value, lhs: Value, rhs: Value)
   def getArgs: (Value, Value) = (lhs, rhs)
   override def vtype: VType   = dest.vtype
   override def toString: String =
-    s"$dest = sub $lhs, $rhs;"
+    s"$dest = sub $vtype $lhs, $rhs;"
 
 case class Neg(dest: Value, operand: Value) extends Value with Instr with UnaryOp with NonVoid:
 
@@ -46,7 +46,7 @@ case class Neg(dest: Value, operand: Value) extends Value with Instr with UnaryO
   override def getArg: Value = operand
   override def vtype: VType  = dest.vtype
   override def toString: String =
-    s"$dest = neg $operand"
+    s"$dest = neg $vtype $operand"
 
 case class Mul(dest: Value, lhs: Value, rhs: Value)
     extends Value
@@ -58,7 +58,7 @@ case class Mul(dest: Value, lhs: Value, rhs: Value)
   override def getArgs: (Value, Value) = (lhs, rhs)
   override def vtype: VType            = dest.vtype
   override def toString: String =
-    s"$dest = mul $lhs, $rhs;"
+    s"$dest = mul $vtype $lhs, $rhs;"
 
 case class Div(dest: Value, lhs: Value, rhs: Value)
     extends Value
@@ -70,7 +70,7 @@ case class Div(dest: Value, lhs: Value, rhs: Value)
   override def getArgs: (Value, Value) = (lhs, rhs)
   override def vtype: VType            = dest.vtype
   override def toString: String =
-    s"$dest = div $lhs, $rhs;"
+    s"$dest = div $vtype $lhs, $rhs;"
 
 case class Mov(lhs: Value, rhs: Value) extends Value with Instr with UnaryOp with NonVoid:
 
@@ -78,13 +78,13 @@ case class Mov(lhs: Value, rhs: Value) extends Value with Instr with UnaryOp wit
   override def getArg: Value = rhs
   override def vtype: VType  = lhs.vtype
   override def toString: String =
-    s"$lhs = mov $rhs;"
+    s"$lhs = mov $vtype $rhs;"
 
 case class Call(dest: Value, fn: Value, args: List[Value]) extends Value with Instr with VarOp:
   def getArgs: List[Value]  = args
   override def vtype: VType = dest.vtype
   override def toString: String =
-    s"$dest = call $fn" + args.foldLeft((acc: String, arg: Value) => acc + " " + arg) + ";"
+    s"$dest = call $vtype $fn" + args.foldLeft((acc: String, arg: Value) => acc + " " + arg) + ";"
 
 case class Jmp(label: Value) extends Value with Instr:
   override def vtype: VType = VType.unit
@@ -101,7 +101,7 @@ case class Ret(ret: Value) extends Value with Instr with UnaryOp:
   def getArg: Value         = ret
   override def vtype: VType = VType.unit
   override def toString: String =
-    s"ret $ret;"
+    s"ret $vtype $ret;"
 
 enum Predicate:
   case eq
@@ -117,4 +117,4 @@ case class Cmp(dest: Value, pred: Predicate, lhs: Value, rhs: Value)
   override def getArgs: (Value, Value) = (lhs, rhs)
   override def vtype: VType            = VType.bool
   override def toString: String =
-    s"$dest = cmp $pred $lhs $rhs"
+    s"$dest = cmp $vtype $pred $lhs $rhs"
