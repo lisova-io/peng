@@ -85,7 +85,7 @@ class DefaultLexer(val input: String) extends Lexer:
                 nextChar
                 Token.Le -> Span(b, b + 1)
               })
-              .getOrElse(Token.Assign -> Span(b, b))
+              .getOrElse(Token.Lt -> Span(b, b))
           case '>' =>
             peekChar
               .filter(_ == '=')
@@ -93,7 +93,7 @@ class DefaultLexer(val input: String) extends Lexer:
                 nextChar
                 Token.Ge -> Span(b, b + 1)
               })
-              .getOrElse(Token.Assign -> Span(b, b))
+              .getOrElse(Token.Gt -> Span(b, b))
           case c if c.isIdentifierStart => {
             (c + getWhile(_.isIdentifierChar)) match
               case "fn"     => Token.Fn            -> Span(b, b + 1)
