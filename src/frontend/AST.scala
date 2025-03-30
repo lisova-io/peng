@@ -17,9 +17,20 @@ sealed trait Decl extends AstNode:
 sealed trait Stmt extends AstNode
 sealed trait Expr extends AstNode
 
-type AST   = HashMap[Name, Decl]
-type Name  = String
-type Type  = String
+type AST  = HashMap[Name, Decl]
+type Name = String
+enum Type {
+  case I32
+  case Bool
+}
+
+object Type:
+  def fromString(s: String): Option[Type] =
+    s match
+      case "i32"  => Some(Type.I32)
+      case "bool" => Some(Type.Bool)
+      case _      => None
+
 type Block = List[Stmt]
 
 sealed case class FnDecl(
@@ -67,6 +78,12 @@ enum BinOp extends Ordered[BinOp]:
   case Minus
   case Mul
   case Assign
+  case Eq
+  case Ne
+  case Lt
+  case Le
+  case Gt
+  case Ge
 
   override def toString(): String =
     this match
@@ -74,33 +91,29 @@ enum BinOp extends Ordered[BinOp]:
       case Minus  => "-"
       case Mul    => "*"
       case Assign => "="
+      case Eq     => "=="
+      case Ne     => "!="
+      case Lt     => "<"
+      case Le     => "<="
+      case Gt     => ">"
+      case Ge     => ">="
 
   override def compare(that: BinOp): Int = this.precedence compare that.precedence
   def precedence: Precedence = this match
-    case Plus   => 2
-    case Minus  => 2
-    case Mul    => 3
-    case Assign => 1
+    case Assign            => 1
+    case Lt | Le | Gt | Ge => 2
+    case Eq | Ne           => 3
+    case Plus | Minus      => 4
+    case Mul               => 5
 
 sealed case class VarRefExpr(val name: WithSpan[Name]) extends Expr:
-  override def toString(): String =
-    s"${name.value}"
+  override def toString(): String = s"${name.value}"
 sealed case class CallExpr(val name: WithSpan[Name], val args: List[Expr]) extends Expr:
-  override def toString: String =
-    s"(${name.value} (${args.mkString(", ")}))"
+  override def toString: String = s"(${name.value} (${args.mkString(", ")}))"
 sealed case class BinExpr(val op: WithSpan[BinOp], val lhs: Expr, val rhs: Expr) extends Expr:
-  override def toString: String =
-    val opStr = op.value match
-      case BinOp.Plus   => "+"
-      case BinOp.Minus  => "-"
-      case BinOp.Mul    => "*"
-      case BinOp.Assign => "="
-    s"($lhs $opStr $rhs)"
+  override def toString: String = s"($lhs ${op.value} $rhs)"
 sealed case class UnaryExpr(val op: WithSpan[UnaryOp], val expr: Expr) extends Expr:
-  override def toString: String =
-    val opStr = op.value match
-      case UnaryOp.Minus => "-"
-    s"($opStr $expr)"
+  override def toString: String = s"(${op.value} $expr)"
 sealed case class NumLitExpr(val tp: Option[Type], val value: WithSpan[BigInt]) extends Expr:
   override def toString: String = value.value.toString
 

@@ -1,4 +1,7 @@
 fn foo() { 
-  val bar = 42;
-  bar = 37;
+  var i = 0;
+  while i < 42 {
+    i = i + 1;
+  }
+  return i;
 }
