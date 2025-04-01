@@ -9,8 +9,10 @@ class GraphVizNode(val node: String):
   def addNode(node: GraphVizNode): Unit =
     next +:= node
   override def toString(): String =
+    val printNode = if node(0) == '%' then node.drop(1) else node
     next.foldLeft("")((acc: String, nextNode: GraphVizNode) =>
-      acc + "\"" + node.drop(1) + "\"" + " -> " + "\"" + nextNode.node.drop(1) + "\"" + System
+      val printNextNode = if nextNode.node(0) == '%' then nextNode.node.drop(1) else nextNode
+      acc + "\"" + printNode + "\"" + " -> " + "\"" + printNextNode + "\"" + System
         .lineSeparator() + "    "
     )
 

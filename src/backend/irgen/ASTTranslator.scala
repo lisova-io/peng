@@ -29,15 +29,20 @@ sealed trait TranslatorCtx:
   def genLoopLabel: Label
   def genLoopCondLabel: Label
   def genLoopExitLabel: Label
+  def genAfterIf: Label
 
 sealed class DefaultCtx extends TranslatorCtx:
   var regCounter: Int         = 0
-  var labelCounter: Int       = 0
   var ifThenLabelCounter: Int = 0
   var ifElseLabelCounter: Int = 0
   var loopCondCounter: Int    = 0
   var loopLabelCounter: Int   = 0
   var loopExitLabel: Int      = 0
+  var afterIf: Int            = 0
+
+  def genAfterIf: Label =
+    afterIf += 1
+    Label("%after.if" + afterIf)
 
   def genLoopLabel: Label =
     loopLabelCounter += 1
@@ -64,15 +69,15 @@ sealed class DefaultCtx extends TranslatorCtx:
     Var("%" + regCounter.toString, vtype)
 
   def genLabel: Label =
-    labelCounter += 1
-    Label("%" + labelCounter.toString)
+    regCounter += 1
+    Label("%" + regCounter.toString)
 
 sealed class LoggingCtx extends DefaultCtx with StrictLogging:
   override def genVirtualReg(vtype: VType): Var =
     logger.debug(s"call of genVirtualReg $vtype, prev counter $regCounter")
     super.genVirtualReg(vtype)
   override def genLabel: Label =
-    logger.debug(s"call of genName, prev counter $labelCounter")
+    logger.debug(s"call of genName, prev counter $regCounter")
     super.genLabel
 
 sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) extends ASTTranslator:
@@ -229,9 +234,11 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
       onTrue: BlockStmt,
       onFalse: Option[BlockStmt | IfStmt]
   ): Label =
-    val condVal         = genNode(cond)
-    val trueLabel       = ctx.genIfThenLabel
-    val outLabel: Label = ctx.genIfElseLabel
+    val condVal   = genNode(cond)
+    val trueLabel = ctx.genIfThenLabel
+    val outLabel: Label = onFalse match
+      case None => ctx.genAfterIf
+      case _    => ctx.genIfElseLabel
     blockBuilder.addInstr(Br(condVal, trueLabel, outLabel))
     blockStart(trueLabel)
     genNode(onTrue)
@@ -246,12 +253,13 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
         blockStart(outLabel)
         outLabel
       case Some(BlockStmt(block)) =>
-        val falseLabel = ctx.genLabel
-        blockBuilder.addInstr(Jmp(outLabel))
-        blockStart(falseLabel)
-        block.foreach(genNode(_))
+        val actualOutLabel = ctx.genAfterIf
+        blockBuilder.addInstr(Jmp(actualOutLabel))
         blockStart(outLabel)
-        outLabel
+        block.foreach(genNode(_))
+        blockBuilder.addInstr(Jmp(actualOutLabel))
+        blockStart(actualOutLabel)
+        actualOutLabel
 
   // TODO: make it protected and log that shit
   private def genFunction(

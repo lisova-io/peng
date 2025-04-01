@@ -9,7 +9,7 @@ trait ControlFlow
 
 class Program(val fns: HashMap[String, Function]) extends ControlFlow:
   override def toString: String =
-    fns.mkString
+    fns.mkString(System.lineSeparator())
 
 case class BasicBlock(name: Label, var instrs: Vector[Instr]) extends Value with ControlFlow:
   def addInstruction(instr: Instr): Unit = instrs :+= instr
