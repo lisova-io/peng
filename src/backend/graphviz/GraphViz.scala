@@ -1,0 +1,51 @@
+package backend.graphviz
+
+import backend.ir.control._
+import backend.ir.ir._
+import backend.ir.irvalue.ImmInt
+
+class GraphVizNode(val node: String):
+  var next: List[GraphVizNode] = List()
+  def addNode(node: GraphVizNode): Unit =
+    next +:= node
+  override def toString(): String =
+    next.foldLeft("")((acc: String, nextNode: GraphVizNode) =>
+      acc + "\"" + node.drop(1) + "\"" + " -> " + "\"" + nextNode.node.drop(1) + "\"" + System
+        .lineSeparator() + "    "
+    )
+
+class GraphViz:
+  var name: String                      = String()
+  var nodes: List[GraphVizNode]         = List()
+  def setName(name: String): Unit       = this.name = name
+  def addNode(node: GraphVizNode): Unit = nodes +:= node
+  override def toString(): String =
+    val sep = System.lineSeparator() + "    "
+    s"digraph $name {" + sep +
+      nodes.mkString
+      + System.lineSeparator() + "}"
+
+object GraphViz:
+  def programToGV(program: Program): GraphViz =
+    val gv = GraphViz()
+    gv.name = "program"
+    program.fns.foreach((_, fn) => fnToGV(fn, gv))
+    gv
+  private def fnToGV(fn: Function, gv: GraphViz): GraphViz =
+    val blocks = fn.blocks
+    blocks.foreach(block =>
+      val instr  = block.instrs.last
+      val gvnode = GraphVizNode(block.name.name)
+      gv.addNode(gvnode)
+      instr match
+        case Br(cond, tbranch, fbranch) =>
+          gvnode.addNode(GraphVizNode(tbranch.name))
+          gvnode.addNode(GraphVizNode(fbranch.name))
+        case Jmp(label) =>
+          gvnode.addNode(GraphVizNode(label.name))
+        case Ret(ret) => ()
+        case _ =>
+          println("last instruction is not terminator for some reason?")
+          ???
+    )
+    gv

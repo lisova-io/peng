@@ -11,6 +11,9 @@ import backend.ir.irvalue.ImmInt
 import overseer.DebugOverseer
 import overseer.DefaultOverseer
 import backend.opt.passsetup.OptLevel
+import backend.graphviz._
+import java.io.{File, FileWriter}
+import java.io.PrintWriter
 
 enum Mode:
   case Default
@@ -23,6 +26,13 @@ enum Arch:
 val mode     = Mode.Debug
 val optLevel = OptLevel.FullOpt
 val arch     = Arch.X86
+
+def writeToFile(path: String, mes: String): Unit =
+  val pw = new PrintWriter(new File(path))
+  try
+    pw.write(mes)
+  finally
+    pw.close()
 
 @main def main(): Unit = {
 
@@ -49,7 +59,11 @@ val arch     = Arch.X86
   val translator = overseer.getTranslator(ast)
 
   val ir = translator.gen
+
   print(ir)
+
+  val gv = GraphViz.programToGV(ir)
+  writeToFile("program.dot", gv.toString)
 
   val passmanager = overseer.getPassManager(ir, optLevel)
 

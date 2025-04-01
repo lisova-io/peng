@@ -53,4 +53,6 @@ class DefaultMIRGen(program: Program) extends MIRGen:
       case ImmBool(input)             => MBool(input)
       case Var(input, tp)             => MVar(input, tp)
       case Label(name: String)        => genLabel(name)
-    ???
+      case _ =>
+        println("развал в MIRGen'e " + value)
+        ???

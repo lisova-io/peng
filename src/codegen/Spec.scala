@@ -3,6 +3,7 @@ package codegen.spec
 enum CallConvention:
   case RV
   case SystemV
+  case AArch64
 
 trait MachineSpec:
   def wordBits: Int

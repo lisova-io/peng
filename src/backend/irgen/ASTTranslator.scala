@@ -215,6 +215,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
     val condLabel = ctx.genLoopCondLabel
     val bodyLabel = ctx.genLoopLabel
     val endLabel  = ctx.genLoopExitLabel
+    blockBuilder.addInstr(Jmp(condLabel))
     blockStart(condLabel)
     val condReg = genNode(cond)
     blockBuilder.addInstr(Br(condReg, bodyLabel, endLabel))
