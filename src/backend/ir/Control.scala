@@ -47,13 +47,13 @@ case class Function(
       + blocks.mkString + "}"
 
   private def closest(
-      sds: Set[BasicBlock],
       sdoms: HashMap[BasicBlock, Set[BasicBlock]],
       block: BasicBlock
   ): BasicBlock =
     def closer(b1: BasicBlock, b2: BasicBlock): BasicBlock =
       if sdoms(b1).contains(b2) then b1
       else b2
+    val sds = sdoms(block)
     sds.foldLeft(sds.head)((acc, b) => closer(acc, b))
 
   def domTree: HashMap[BasicBlock, List[BasicBlock]] =
@@ -65,12 +65,19 @@ case class Function(
     for (block, sds) <- sdoms do
       if !sds.isEmpty then
         if sds.size == 1 then addToMap(sds.head, block, dtree)
-        else addToMap(closest(sds, sdoms, block), block, dtree)
+        else addToMap(closest(sdoms, block), block, dtree)
     dtree
 
   def strictDominators: HashMap[BasicBlock, Set[BasicBlock]] =
     val doms = dominators
     doms.map((b, set) => b -> (set - b))
+
+  def immediateDominators: HashMap[BasicBlock, BasicBlock] =
+    val sdoms = strictDominators
+    // it is equivalent to (block, set) <- sdoms
+    // but it's funny asf
+    for block -> set <- sdoms if !sdoms(block).isEmpty
+    yield block -> closest(sdoms, block)
 
   def dominators: HashMap[BasicBlock, Set[BasicBlock]] =
     val all: Set[BasicBlock] = blocks.toSet

@@ -58,6 +58,14 @@ def checkDomTree(ir: Program): Unit =
     )
   )
 
+def checkImmDoms(ir: Program): Unit =
+  ir.fns.foreach((_, fn) =>
+    val dom = fn.immediateDominators
+    println()
+    dom.foreach((block, toBlock) => println(s"${block.name} -> ${toBlock.name}"))
+    println()
+  )
+
 @main def main(): Unit = {
 
   val overseer = mode match
@@ -84,7 +92,7 @@ def checkDomTree(ir: Program): Unit =
 
   val ir = translator.gen
 
-  checkDomTree(ir)
+  checkImmDoms(ir)
 
   val gv = GraphViz.programToGV(ir)
   writeToFile("program.dot", gv.toString)
