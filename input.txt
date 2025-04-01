@@ -14,17 +14,5 @@ fn foo() {
   while i == 0 {
     a = b + a;
   }
-}
-
-fn boo(arg: i32) i32 {
-  var a = 37;
-  var b = 48;
-  if a == 37 {
-    a = a + b;
-  } else if a >= b {
-    a = a * b;
-  } else {
-    a = a - b;
-  }
-  return a;
+  foo(a);
 }

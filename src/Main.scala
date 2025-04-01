@@ -14,6 +14,8 @@ import backend.opt.passsetup.OptLevel
 import backend.graphviz._
 import java.io.{File, FileWriter}
 import java.io.PrintWriter
+import backend.ir.control.Program
+import backend.ir.control.BasicBlock
 
 enum Mode:
   case Default
@@ -23,7 +25,7 @@ enum Arch:
   case X86
 
 // TODO: get this settings from cli args
-val mode     = Mode.Debug
+val mode     = Mode.Default
 val optLevel = OptLevel.FullOpt
 val arch     = Arch.X86
 
@@ -33,6 +35,28 @@ def writeToFile(path: String, mes: String): Unit =
     pw.write(mes)
   finally
     pw.close()
+
+def checkDoms(ir: Program): Unit =
+  ir.fns.foreach((_, fn) =>
+    val dom = fn.dominators
+    dom.foreach((block, doms) =>
+      println(s"${block.name}: ")
+      doms.foreach(block => println(s"   ${block.name}"))
+    )
+    println()
+  )
+
+def checkDomTree(ir: Program): Unit =
+  ir.fns.foreach((_, fn) =>
+    val domTree = fn.domTree
+    domTree.foreach((pred, suc) =>
+      println(
+        s"${pred.name} -> ${suc
+            .foldLeft("")((acc: String, b: BasicBlock) => b.name.name + ", " + acc)
+            .dropRight(2)}"
+      )
+    )
+  )
 
 @main def main(): Unit = {
 
@@ -54,13 +78,13 @@ def writeToFile(path: String, mes: String): Unit =
   printDiagnostics(input, diagnostics)
   if diagnostics.containsErrors then return
 
-  printAST(ast)
+  // printAST(ast)
 
   val translator = overseer.getTranslator(ast)
 
   val ir = translator.gen
 
-  print(ir)
+  checkDomTree(ir)
 
   val gv = GraphViz.programToGV(ir)
   writeToFile("program.dot", gv.toString)

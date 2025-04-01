@@ -27,13 +27,16 @@ class BBuilder extends Builder[BasicBlock]:
     this
 
 class FnBuilder extends Builder[Function]:
-  var blocks: Vector[BasicBlock]           = Vector()
-  var name: Label                          = Label(String())
-  var args: List[Value]                    = List()
-  var vtype: VType                         = VType.unit
-  var blockMap: HashMap[Label, BasicBlock] = HashMap()
+  var blocks: Vector[BasicBlock]             = Vector()
+  var name: Label                            = Label(String())
+  var args: List[Value]                      = List()
+  var vtype: VType                           = VType.unit
+  var blockMap: HashMap[Label, BasicBlock]   = HashMap()
+  var labelPreds: HashMap[Label, Set[Label]] = HashMap()
   def addBlock(block: BasicBlock): FnBuilder =
     blocks :+= block
+    blockMap.addOne(block.name -> block)
+    if !labelPreds.contains(block.name) then labelPreds.addOne(block.name -> Set())
     this
   def setName(name: Label): FnBuilder =
     this.name = name
@@ -50,6 +53,15 @@ class FnBuilder extends Builder[Function]:
     args = List()
     vtype = VType.unit
     blockMap = HashMap()
+    labelPreds = HashMap()
+    this
+  def addPred(succ: Label, pred: Label): FnBuilder =
+    if labelPreds.contains(succ) then labelPreds(succ) += pred
+    else labelPreds.addOne(succ -> Set(pred))
     this
   def build: Function =
-    Function(blocks, vtype, name, args, blockMap)
+    val blocksPred: HashMap[BasicBlock, Set[BasicBlock]] =
+      labelPreds
+        .map((label, set) => blockMap(label) -> set.map(label => blockMap(label)))
+        .to(HashMap)
+    Function(blocks, vtype, name, args, blockMap, blocksPred)

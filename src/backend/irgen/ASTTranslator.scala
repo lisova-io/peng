@@ -95,6 +95,19 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
       case BinOp.Ne => Predicate.neq
       case _        => ???
 
+  private def createJmp(label: Label, block: BasicBlock): Unit =
+    val pred = block.name
+    fnBuilder.addPred(label, pred)
+    block.addInstruction(Jmp(label))
+  private def createJmp(label: Label): Unit =
+    val pred = blockBuilder.name
+    fnBuilder.addPred(label, pred)
+    blockBuilder.addInstr(Jmp(label))
+  private def createBr(cond: Value, tbranch: Label, fbranch: Label): Unit =
+    val pred = blockBuilder.name
+    fnBuilder.addPred(tbranch, pred)
+    fnBuilder.addPred(fbranch, pred)
+    blockBuilder.addInstr(Br(cond, tbranch, fbranch))
   /*
    * Generate intermediate representation for binary expression.
    * Side effect is that it adds instruction to the current block in the builder.
@@ -220,13 +233,13 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
     val condLabel = ctx.genLoopCondLabel
     val bodyLabel = ctx.genLoopLabel
     val endLabel  = ctx.genLoopExitLabel
-    blockBuilder.addInstr(Jmp(condLabel))
+    createJmp(condLabel)
     blockStart(condLabel)
     val condReg = genNode(cond)
-    blockBuilder.addInstr(Br(condReg, bodyLabel, endLabel))
+    createBr(condReg, bodyLabel, endLabel)
     blockStart(bodyLabel)
     genNode(body)
-    blockBuilder.addInstr(Jmp(condLabel))
+    createJmp(condLabel)
     blockStart(endLabel)
 
   protected def genIf(
@@ -239,25 +252,25 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
     val outLabel: Label = onFalse match
       case None => ctx.genAfterIf
       case _    => ctx.genIfElseLabel
-    blockBuilder.addInstr(Br(condVal, trueLabel, outLabel))
+    createBr(condVal, trueLabel, outLabel)
     blockStart(trueLabel)
     genNode(onTrue)
     onFalse match
       case Some(IfStmt(cond, onTrue, onFalse)) =>
         val block       = blockStart(outLabel)
         val newOutLabel = genIf(cond, onTrue, onFalse)
-        block.addInstruction(Jmp(newOutLabel))
+        createJmp(newOutLabel, block)
         newOutLabel
       case None =>
-        blockBuilder.addInstr(Jmp(outLabel))
+        createJmp(outLabel)
         blockStart(outLabel)
         outLabel
       case Some(BlockStmt(block)) =>
         val actualOutLabel = ctx.genAfterIf
-        blockBuilder.addInstr(Jmp(actualOutLabel))
+        createJmp(actualOutLabel)
         blockStart(outLabel)
         block.foreach(genNode(_))
-        blockBuilder.addInstr(Jmp(actualOutLabel))
+        createJmp(actualOutLabel)
         blockStart(actualOutLabel)
         actualOutLabel
 

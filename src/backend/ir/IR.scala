@@ -84,7 +84,7 @@ case class Call(dest: Value, fn: Label, args: List[Value]) extends Value with In
   def getArgs: List[Value]  = args
   override def vtype: VType = dest.vtype
   override def toString: String =
-    s"$dest = call $vtype $fn" + args.foldLeft((acc: String, arg: Value) => acc + " " + arg) + ";"
+    s"$dest = call $vtype $fn " + args.mkString(", ") + ";"
 
 case class Jmp(label: Label) extends Value with Instr:
   override def vtype: VType = VType.unit
