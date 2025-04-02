@@ -26,7 +26,7 @@ case class ImmBool(input: Boolean) extends Value:
   override def isConst: Boolean = true
   override def toString: String = s"$input"
 
-case class Var(input: String, vartype: VType) extends Value:
+case class Var(val input: String, vartype: VType) extends Value:
   def vtype: VType              = vartype
   override def toString: String = s"$input"
 

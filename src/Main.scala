@@ -16,6 +16,7 @@ import java.io.{File, FileWriter}
 import java.io.PrintWriter
 import backend.ir.control.Program
 import backend.ir.control.BasicBlock
+import backend.ir.irvalue.Label
 
 enum Mode:
   case Default
@@ -46,13 +47,36 @@ def checkDoms(ir: Program): Unit =
     println()
   )
 
+def checkPhi(ir: Program): Unit =
+  ir.fns.foreach((_, f) =>
+    f.insertPhi
+    println(f)
+  )
+
+def checkDF(ir: Program): Unit =
+  ir.fns.foreach((_, fn) =>
+    val dom = fn.dominationFrontier
+    dom.foreach((block, doms) =>
+      println(s"${block.name}: ")
+      doms.foreach(block => println(s"   ${block.name}"))
+    )
+    println()
+  )
+  // println("====")
+  // ir.fns.foreach((_, fn) =>
+  //   fn.vars.foreach((v, s) =>
+  //     println(s"$v:")
+  //     s.foreach(b => println(s"  ${b.name}"))
+  //   )
+  // )
+
 def checkDomTree(ir: Program): Unit =
   ir.fns.foreach((_, fn) =>
     val domTree = fn.domTree
     domTree.foreach((pred, suc) =>
       println(
         s"${pred.name} -> ${suc
-            .foldLeft("")((acc: String, b: BasicBlock) => b.name.name + ", " + acc)
+            .foldLeft("")((acc: String, b: Label) => b.name + ", " + acc)
             .dropRight(2)}"
       )
     )
@@ -91,8 +115,10 @@ def checkImmDoms(ir: Program): Unit =
   val translator = overseer.getTranslator(ast)
 
   val ir = translator.gen
-
-  checkImmDoms(ir)
+  print(ir)
+  checkDF(ir)
+  checkPhi(ir)
+  // ir.fns.head._2.insertPhi
 
   val gv = GraphViz.programToGV(ir)
   writeToFile("program.dot", gv.toString)

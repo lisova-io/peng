@@ -33,6 +33,11 @@ class FnBuilder extends Builder[Function]:
   var vtype: VType                           = VType.unit
   var blockMap: HashMap[Label, BasicBlock]   = HashMap()
   var labelPreds: HashMap[Label, Set[Label]] = HashMap()
+  var vars: HashMap[Var, Set[Label]]         = HashMap()
+  def addVar(v: Var, l: Label): FnBuilder =
+    if vars.contains(v) then vars(v) += l
+    else vars.addOne(v -> Set(l))
+    this
   def addBlock(block: BasicBlock): FnBuilder =
     blocks :+= block
     blockMap.addOne(block.name -> block)
@@ -60,8 +65,11 @@ class FnBuilder extends Builder[Function]:
     else labelPreds.addOne(succ -> Set(pred))
     this
   def build: Function =
-    val blocksPred: HashMap[BasicBlock, Set[BasicBlock]] =
-      labelPreds
-        .map((label, set) => blockMap(label) -> set.map(label => blockMap(label)))
-        .to(HashMap)
-    Function(blocks, vtype, name, args, blockMap, blocksPred)
+    // val blocksPred: HashMap[BasicBlock, Set[BasicBlock]] =
+    //   labelPreds
+    //     .map((label, set) => blockMap(label) -> set.map(label => blockMap(label)))
+    //     .to(HashMap)
+    //
+    // val varsBlocks: HashMap[Var, Set[BasicBlock]] =
+    //   vars.map((v, labels) => v -> labels.map(l => blockMap(l)))
+    Function(blocks, vtype, name, args, blockMap, labelPreds, vars)

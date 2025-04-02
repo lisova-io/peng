@@ -22,7 +22,7 @@ sealed trait ASTTranslator:
   def gen: Program
 
 sealed trait TranslatorCtx:
-  def genVirtualReg(vtype: VType): Var
+  def genVirtualReg(vtype: VType, fn: FnBuilder, l: Label): Var
   def genLabel: Label
   def genIfThenLabel: Label
   def genIfElseLabel: Label
@@ -64,18 +64,20 @@ sealed class DefaultCtx extends TranslatorCtx:
     ifElseLabelCounter += 1
     Label("%if.else" + ifElseLabelCounter.toString)
 
-  def genVirtualReg(vtype: VType): Var =
+  def genVirtualReg(vtype: VType, fn: FnBuilder, l: Label): Var =
     regCounter += 1
-    Var("%" + regCounter.toString, vtype)
+    val v = Var("%" + regCounter.toString, vtype)
+    fn.addVar(v, l)
+    v
 
   def genLabel: Label =
     regCounter += 1
     Label("%" + regCounter.toString)
 
 sealed class LoggingCtx extends DefaultCtx with StrictLogging:
-  override def genVirtualReg(vtype: VType): Var =
+  override def genVirtualReg(vtype: VType, fn: FnBuilder, l: Label): Var =
     logger.debug(s"call of genVirtualReg $vtype, prev counter $regCounter")
-    super.genVirtualReg(vtype)
+    super.genVirtualReg(vtype, fn, l)
   override def genLabel: Label =
     logger.debug(s"call of genName, prev counter $regCounter")
     super.genLabel
@@ -99,15 +101,23 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
     val pred = block.name
     fnBuilder.addPred(label, pred)
     block.addInstruction(Jmp(label))
+
   private def createJmp(label: Label): Unit =
     val pred = blockBuilder.name
     fnBuilder.addPred(label, pred)
     blockBuilder.addInstr(Jmp(label))
+
   private def createBr(cond: Value, tbranch: Label, fbranch: Label): Unit =
     val pred = blockBuilder.name
     fnBuilder.addPred(tbranch, pred)
     fnBuilder.addPred(fbranch, pred)
     blockBuilder.addInstr(Br(cond, tbranch, fbranch))
+
+  private def createVar(name: String, tp: VType): Var =
+    val v = Var(name, tp)
+    fnBuilder.addVar(v, blockBuilder.name)
+    v
+
   /*
    * Generate intermediate representation for binary expression.
    * Side effect is that it adds instruction to the current block in the builder.
@@ -118,7 +128,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
     val right = genNode(rhs)
     val dest = op match
       case BinOp.Assign => left
-      case _            => ctx.genVirtualReg(VType.i32)
+      case _            => ctx.genVirtualReg(VType.i32, fnBuilder, blockBuilder.name)
     op match
       case BinOp.Plus =>
         blockBuilder.addInstr(Add(dest, left, right))
@@ -154,7 +164,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
     ast(name) match
       case FnDecl(name, params, rtype, body) =>
         val fntype = astTypeToIR(rtype)
-        val dest   = ctx.genVirtualReg(fntype)
+        val dest   = ctx.genVirtualReg(fntype, fnBuilder, blockBuilder.name)
         val label  = Label(name.value)
         val instr  = Call(dest, label, irArgs)
         blockBuilder.addInstr(instr)
@@ -175,7 +185,8 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
     val vtype = astTypeToIR(tp)
     val rhs   = genNode(value)
     // TODO: when typechecker is ready, fix or assert
-    val lhs = Var(name, rhs.vtype)
+    // val lhs = Var(name, rhs.vtype)
+    val lhs = createVar(name, rhs.vtype)
     blockBuilder.addInstr(Mov(lhs, rhs))
     lhs
 
@@ -223,7 +234,8 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
     Void()
 
   protected def genVarRef(name: String): Value =
-    Var(name, VType.i32)
+    createVar(name, VType.i32)
+    // Var(name, VType.i32)
 
   protected def fullReset: Unit =
     fnBuilder.reset
@@ -289,7 +301,8 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
     val paramsNoSpan = params.foreach((astArg, astType) => {
       val arg   = astArg.value
       val vtype = astTypeToIR(Some(astType))
-      fnBuilder.addArg(Var(arg, vtype))
+      // fnBuilder.addArg(Var(arg, vtype))
+      fnBuilder.addArg(createVar(arg, vtype))
     })
     val irBody = genBlock(body)
     fnEnd

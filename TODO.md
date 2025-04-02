@@ -20,5 +20,9 @@ few usecases we have for logging. Also configuration of it is sheise.
 
 ## Backend
 
+### IR
+- Write data structure for instructions and basicblocks(holy shit scala collections suck).
+
 ### Codegen
 - Write machine IR part and overall codegen.
+

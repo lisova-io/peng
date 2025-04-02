@@ -11,6 +11,7 @@ fn foo() {
   } else if a == b {
     c = b + a;
   }
+  i = 0;
   while i == 0 {
     a = b + a;
   }
