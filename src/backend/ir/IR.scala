@@ -1,6 +1,8 @@
 package backend.ir.ir
 
 import backend.ir.irvalue._
+import scala.collection.mutable.HashMap
+import scala.collection.mutable.Stack
 
 sealed trait Instr
 
@@ -80,7 +82,12 @@ case class Mov(lhs: Value, rhs: Value) extends Value with Instr with UnaryOp wit
   override def toString: String =
     s"$lhs = mov $vtype $rhs;"
 
-case class Call(dest: Value, fn: Label, args: List[Value]) extends Value with Instr with VarOp:
+case class Call(dest: Value, fn: Label, args: List[Value])
+    extends Value
+    with Instr
+    with VarOp
+    with NonVoid:
+  def getDest: Value        = dest
   def getArgs: List[Value]  = args
   override def vtype: VType = dest.vtype
   override def toString: String =
@@ -116,6 +123,10 @@ case class Phi(dest: Value, var vals: List[Var], var defined: List[Label])
     with Instr
     with VarOp
     with NonVoid:
+  def rename(l: Label, stacks: HashMap[Var, Stack[Var]]): Phi =
+    vals = vals.zip(defined).map((v, label) => if label == l then stacks(v).top else v)
+    this
+
   def add(v: Var, l: Label): Unit =
     vals :+= v
     defined :+= l

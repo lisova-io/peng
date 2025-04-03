@@ -9,10 +9,9 @@ import scala.collection.immutable.Set
 import scala.annotation.internal.RuntimeChecked
 import scala.util.boundary, boundary.break
 import scala.collection.mutable.Stack
+import backend.ir.renamer.Renamer
 
 trait ControlFlow
-
-var counter: Int = 0
 
 class Program(val fns: HashMap[String, Function]) extends ControlFlow:
   override def toString: String =
@@ -38,6 +37,13 @@ case class BasicBlock(name: Label, var instrs: Vector[Instr]) extends Value with
         val phi = Phi(v, List(v), List(l))
         instrs +:= phi
         phis.addOne(v -> phi)
+
+  def renamePhi(l: Label, stacks: HashMap[Var, Stack[Var]]): Unit =
+    instrs = instrs.map(i =>
+      i match
+        case phi: Phi => phi.rename(l, stacks)
+        case i        => i
+    )
 
   def getSuccessors: List[Label] =
     instrs.last match
@@ -79,6 +85,16 @@ case class Function(
     val sds = sdoms(block)
     sds.foldLeft(sds.head)((acc, b) => closer(acc, b))
 
+  def rename =
+    val dtree                            = domTree
+    val stacks: HashMap[Var, Stack[Var]] = vars.map((v, _) => v -> Stack(v))
+    val renamer                          = Renamer()
+    renameBlock(blockMap(name))
+    def renameBlock(b: BasicBlock): Unit =
+      b.instrs = b.instrs.map(instr => renamer.rename(instr, stacks, b.name))
+      for suc <- b.getSuccessors do blockMap(suc).renamePhi(b.name, stacks)
+      if dtree.contains(b.name) then dtree(b.name).foreach(l => renameBlock(blockMap(l)))
+
   def insertPhi =
     val stack: Stack[Label] = Stack()
     val df                  = dominationFrontier
@@ -95,17 +111,20 @@ case class Function(
               domfBlock.insertPhi(v, defLabel)
               stack.push(domfLabel)
               if blockPreds.contains(domfLabel) && sdom.contains(domfLabel) then
+                // TODO: fix the bug where we incorrectly assume the block where the var has come from because of deletion of phi nodes.
                 for bp <- blockPreds(domfLabel) do
                   if sdom(domfLabel).contains(bp) then
                     if blockMap(bp).varDefined(v) then domfBlock.insertPhi(v, bp)
 
-    blocks.foreach(block =>
-      block.instrs = block.instrs.filterNot(instr =>
-        instr match
-          case Phi(dest, vals, defined) => if vals.length < 2 then true else false
-          case _                        => false
-      )
-    )
+    // blocks.foreach(block =>
+    //   block.instrs = block.instrs.filterNot(instr =>
+    //     instr match
+    //       case Phi(dest, vals, defined) => if vals.length < 2 then true else false
+    //       case _                        => false
+    //   )
+    // )
+    rename
+    print(this)
 
   def domTree: HashMap[Label, List[Label]] =
     def addToMap[K, V](key: K, value: V, m: HashMap[K, List[V]]) =

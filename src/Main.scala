@@ -116,7 +116,6 @@ def checkImmDoms(ir: Program): Unit =
 
   val ir = translator.gen
   print(ir)
-  checkDF(ir)
   checkPhi(ir)
   // ir.fns.head._2.insertPhi
 
