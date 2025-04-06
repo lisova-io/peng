@@ -1,6 +1,6 @@
 package backend.ir.ir
 
-import backend.ir.irvalue._
+import backend.ir.irvalue.*
 
 sealed trait Instr
 

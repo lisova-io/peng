@@ -1,7 +1,7 @@
 package backend.opt.passmanager
 
 import scala.collection.mutable.HashMap
-import backend.ir.control._
+import backend.ir.control.*
 import com.typesafe.scalalogging.StrictLogging
 
 type Program = HashMap[String, Function]
@@ -42,7 +42,7 @@ sealed class DefaultManager(program: Program) extends PassManager:
       case gp: GlobalPass => globalPass(gp)
       case _              => ???
   def perform: Program =
-    for (pass <- passes) do current_program = performPass(pass)
+    for pass <- passes do current_program = performPass(pass)
     current_program
 
 final class LoggingManager(program: Program) extends DefaultManager(program) with StrictLogging:

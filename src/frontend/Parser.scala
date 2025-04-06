@@ -1,7 +1,7 @@
 package frontend.parse
 
-import frontend.ast._
-import frontend.lex.{Lexer, Offset, Token, Span, WithSpan}
+import frontend.ast.*
+import frontend.lex.{Lexer, Offset, Span, Token, WithSpan}
 import frontend.diagnostics.Diagnostic
 
 import scala.util.boundary, boundary.break
@@ -24,7 +24,7 @@ private def expected[A](span: Span, expected: Any*): Diagnostic = {
 }
 
 trait Parser:
-  def parse: (AST, List[Diagnostic])
+  def parse: (List[Decl], List[Diagnostic])
 
 class DefaultParser(lexer: Lexer) extends Parser:
   private def matchToken[T](tok: Token, value: T = ()): Token => Option[T] =
@@ -56,7 +56,7 @@ class DefaultParser(lexer: Lexer) extends Parser:
         case Token.Number(value) => Some(value)
         case _                   => None
       ,
-      "number"
+      "number",
     )
 
   private def parseIdentifier: ParseResult[WithSpan[String]] =
@@ -65,7 +65,7 @@ class DefaultParser(lexer: Lexer) extends Parser:
         case Token.Identifier(value) => Some(value)
         case _                       => None
       ,
-      "identifier"
+      "identifier",
     )
 
   private def parseType: ParseResult[WithSpan[Type]] =
@@ -74,7 +74,7 @@ class DefaultParser(lexer: Lexer) extends Parser:
         case Token.Identifier(s) => Type.fromString(s)
         case _                   => None
       ,
-      "type"
+      "type",
     )
 
   private def tryParseType: Option[WithSpan[Type]] =
@@ -83,7 +83,7 @@ class DefaultParser(lexer: Lexer) extends Parser:
         case Token.Identifier(s) => Type.fromString(s)
         case _                   => None
       ,
-      "type"
+      "type",
     ) match
       case Left(err) => None
       case Right(t)  => lexer.next; Some(t)
@@ -97,14 +97,14 @@ class DefaultParser(lexer: Lexer) extends Parser:
             case _            => Some(true)
         },
         "argument",
-        Token.RParen
+        Token.RParen,
       ) match
         case Left(err)                 => break(Left(err))
-        case Right(WithSpan(false, _)) => lexer.next; break(Right(List()))
+        case Right(WithSpan(false, _)) => lexer.next; break(Right(Nil))
         case Right(WithSpan(true, _))  => ()
 
-      var args: List[Expr] = List()
-      while (true) {
+      var args: List[Expr] = Nil
+      while true do {
         parseExpr match
           case Left(err)  => break(Left(err))
           case Right(arg) => args :+= arg
@@ -117,7 +117,7 @@ class DefaultParser(lexer: Lexer) extends Parser:
               case _            => None
           },
           Token.Comma,
-          Token.RParen
+          Token.RParen,
         ) match
           case Left(err)                 => break(Left(err))
           case Right(WithSpan(false, _)) => break(Right(args))
@@ -149,24 +149,37 @@ class DefaultParser(lexer: Lexer) extends Parser:
         case Token.Number(value) => Some(value)
         case _                   => None
       ),
-      Token.Number
-    ).map(v => NumLitExpr(None, v))
+      Token.Number,
+    ).map(v => NumLitExpr(Type.Undef, v))
+
+  private def parseBoolLiteral: ParseResult[BoolLitExpr] =
+    token(
+      (_ match
+        case Token.True  => Some(true)
+        case Token.False => Some(false)
+        case _           => None
+      ),
+      Token.True,
+      Token.False,
+    ).map(v => BoolLitExpr(v))
 
   private def parseTerm: ParseResult[Expr] = {
     enum ExprType:
       case Subexpr
       case Ref
       case Num
+      case Bool
 
     peekToken(
       (
         _ match
-          case Token.LParen        => Some(ExprType.Subexpr)
-          case Token.Identifier(_) => Some(ExprType.Ref)
-          case Token.Number(_)     => Some(ExprType.Num)
-          case _                   => None
+          case Token.LParen             => Some(ExprType.Subexpr)
+          case Token.Identifier(_)      => Some(ExprType.Ref)
+          case Token.Number(_)          => Some(ExprType.Num)
+          case Token.True | Token.False => Some(ExprType.Bool)
+          case _                        => None
       ),
-      "expression"
+      "expression",
     ).flatMap(ws =>
       val WithSpan(ex, _) = ws
       ex match
@@ -177,8 +190,9 @@ class DefaultParser(lexer: Lexer) extends Parser:
               .andThen(Right(e))
           )
         }
-        case ExprType.Ref => parseRefExpr
-        case ExprType.Num => parseNumLiteral
+        case ExprType.Ref  => parseRefExpr
+        case ExprType.Num  => parseNumLiteral
+        case ExprType.Bool => parseBoolLiteral
     )
   }
 
@@ -203,9 +217,9 @@ class DefaultParser(lexer: Lexer) extends Parser:
 
     var lhs: Expr = _lhs;
     boundary {
-      while (true) {
+      while true do {
         val curPrec = getCurPrecedence
-        if (curPrec < opPrec) break(Right(lhs))
+        if curPrec < opPrec then break(Right(lhs))
 
         val res = for {
           binOp <- token(binOpFromToken, "binary operator")
@@ -231,14 +245,16 @@ class DefaultParser(lexer: Lexer) extends Parser:
       e   <- parseBinaryExpr(0, lhs)
     } yield e
 
-  private def parseRetStmt: ParseResult[RetStmt | VoidRetStmt.type] =
+  private def parseRetStmt: ParseResult[RetStmt | UnitRetStmt] =
     token(matchToken(Token.Return), Token.Return)
-      .andThen(peekToken(_ match
-        case Token.Semicolon => Some(false)
-        case _               => Some(true)))
+      .flatMap(unitws =>
+        peekToken(_ match
+          case Token.Semicolon => Some(false)
+          case _               => Some(true)).map(b => WithSpan(b.value, unitws.span))
+      )
       .flatMap(ws => {
-        val WithSpan(hasExpr, _) = ws
-        if hasExpr then parseExpr.map(e => RetStmt(e)) else Right(VoidRetStmt)
+        val WithSpan(hasExpr, retSpan) = ws
+        if hasExpr then parseExpr.map(e => RetStmt(e)) else Right(UnitRetStmt(retSpan))
       })
 
   private def parseIfStmt: ParseResult[IfStmt] = {
@@ -249,7 +265,7 @@ class DefaultParser(lexer: Lexer) extends Parser:
             case Token.If     => Some(true)
             case Token.LBrace => Some(false)
             case _            => None,
-          "statement"
+          "statement",
         )
         res <- if isIf.value then parseIfStmt else parseBlock
       } yield res
@@ -315,26 +331,28 @@ class DefaultParser(lexer: Lexer) extends Parser:
     )
   }
 
-  private def parseBlock: ParseResult[BlockStmt] = {
-    def block = boundary {
-      var block: Block = List()
+  private def parseBlock = parseBlockWithLastRParen.map(_._1)
 
-      while (true) {
+  private def parseBlockWithLastRParen: ParseResult[(BlockStmt, Span)] = {
+    def block = boundary {
+      var block: Block = Nil
+
+      while true do {
         def peekSemi = peekToken(matchToken(Token.Semicolon))
         def semi     = token(matchToken(Token.Semicolon), Token.Semicolon)
 
         while peekSemi.isRight do semi
 
-        val r: ParseResult[Boolean] = peekToken(t =>
+        val r: ParseResult[WithSpan[Boolean]] = peekToken(t =>
           t match
             case Token.RBrace => Some(false)
             case _            => Some(true)
-        ).map(_.value)
+        )
 
         r match
-          case Left(_)      => throw RuntimeException("unreachable")
-          case Right(false) => lexer.next; break(Right(block))
-          case Right(true)  => ()
+          case Left(err) => throw RuntimeException(s"unreachable, got error $err")
+          case Right(WithSpan(false, span)) => lexer.next; break(Right((block, span)))
+          case Right(WithSpan(true, _))     => ()
 
         val shouldExpectSemi =
           parseStmt match
@@ -350,10 +368,11 @@ class DefaultParser(lexer: Lexer) extends Parser:
             case Left(err) => break(Left(err))
             case Right(_)  => ()
       }
-      Right(block)
+      ???
     }
 
-    token(matchToken(Token.LBrace), Token.LBrace).andThen(block.map(BlockStmt(_)))
+    token(matchToken(Token.LBrace), Token.LBrace)
+      .andThen(block.map(b => BlockStmt(b._1) -> b._2))
   }
 
   private def parseFnDecl: ParseResult[FnDecl] = {
@@ -373,14 +392,14 @@ class DefaultParser(lexer: Lexer) extends Parser:
               case _            => Some(true)
           },
           "parameter",
-          Token.RParen
+          Token.RParen,
         ) match
           case Left(err)                 => break(Left(err))
-          case Right(WithSpan(false, _)) => lexer.next; break(Right(List()))
+          case Right(WithSpan(false, _)) => lexer.next; break(Right(Nil))
           case Right(WithSpan(true, _))  => ()
 
-        var params: List[(WithSpan[Name], WithSpan[Type])] = List()
-        while (true) {
+        var params: List[(WithSpan[Name], WithSpan[Type])] = Nil
+        while true do {
           parseParam match
             case Left(err)    => break(Left(err))
             case Right(param) => params :+= param
@@ -393,7 +412,7 @@ class DefaultParser(lexer: Lexer) extends Parser:
                 case _            => None
             },
             Token.Comma,
-            Token.RParen
+            Token.RParen,
           ) match
             case Left(err)                 => break(Left(err))
             case Right(WithSpan(false, _)) => break(Right(params))
@@ -409,25 +428,25 @@ class DefaultParser(lexer: Lexer) extends Parser:
       for {
         name   <- parseIdentifier
         params <- parseParams
-        rettype = tryParseType
-        body <- parseBlock
-      } yield FnDecl(
-        name,
-        params,
-        rettype,
-        if rettype.isEmpty && body.block.lastOption
-            .filter(_ match
-              case VoidRetStmt => true
-              case _           => false)
-            .isEmpty
-        then BlockStmt(body.block :+ VoidRetStmt)
-        else body
-      )
+        rettype = tryParseType.getOrElse(lexer.peek.map(ws => ws.map(_ => Type.Unit)).get)
+        (body, rParenSpan) <- parseBlockWithLastRParen
+      } yield {
+        if rettype.value != Type.Unit then FnDecl(name, params, rettype, body)
+        else
+          FnDecl(
+            name,
+            params,
+            rettype,
+            BlockStmt(body.block.lastOption match
+              case Some(UnitRetStmt(_)) => body.block
+              case _                    => body.block :+ UnitRetStmt(rParenSpan)),
+          )
+      }
     )
   }
 
   private def parseVarDecl: ParseResult[VarDecl] = {
-    def t: ParseResult[Option[WithSpan[Type]]] =
+    def t: ParseResult[WithSpan[Type]] =
       peekToken(
         (_ match
           case Token.Colon  => Some(true)
@@ -435,11 +454,11 @@ class DefaultParser(lexer: Lexer) extends Parser:
           case _            => None
         ),
         "variable type",
-        "value"
+        "value",
       ).flatMap(ws => {
         val WithSpan(typeSpecified, _) = ws
-        if typeSpecified then { lexer.next; parseType.map(t => Some(t)) }
-        else Right(None)
+        if typeSpecified then { lexer.next; parseType }
+        else Right(ws.map(_ => Type.Undef))
       })
 
     for {
@@ -450,7 +469,7 @@ class DefaultParser(lexer: Lexer) extends Parser:
           case _         => None
         ),
         Token.Val,
-        Token.Var
+        Token.Var,
       )
       name  <- parseIdentifier
       tp    <- t
@@ -458,9 +477,9 @@ class DefaultParser(lexer: Lexer) extends Parser:
     } yield VarDecl(const.value, name, tp, value)
   }
 
-  def parse: (AST, List[Diagnostic]) = {
-    var res: AST                      = HashMap[Name, Decl]()
-    var diagnostics: List[Diagnostic] = List()
+  def parse: (List[Decl], List[Diagnostic]) = {
+    var res: List[Decl]               = Nil
+    var diagnostics: List[Diagnostic] = Nil
 
     while lexer.peek.isDefined do {
       val declRes = lexer.peek.get match
@@ -471,9 +490,7 @@ class DefaultParser(lexer: Lexer) extends Parser:
 
       declRes match
         case Left(diags) => diagnostics ++= diags
-        // TODO: handle name duplication
-        // case Right(decl) if res.contains(decl.getName) => errors :+= ParseError(i)
-        case Right(decl) => res += (decl.getName.value, decl)
+        case Right(decl) => res :+= decl
     }
 
     (res, diagnostics)

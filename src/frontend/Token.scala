@@ -9,6 +9,9 @@ enum Token:
   case Else
   case While
 
+  case True
+  case False
+
   case Identifier(val value: String)
   case Number(val value: BigInt)
 
@@ -33,14 +36,9 @@ enum Token:
 
   def is(that: Token): Boolean =
     (this, that) match
-      case (Fn, Fn) | (Val, Val) | (Var, Var) | (Return, Return) | (Identifier(_), Identifier(_)) |
-          (Number(_), Number(_)) | (LParen, LParen) | (RParen, RParen) | (LBrace, LBrace) |
-          (RBrace, RBrace) | (Comma, Comma) | (Dot, Dot) | (Colon, Colon) | (Semicolon, Semicolon) |
-          (Plus, Plus) | (Minus, Minus) | (Asterisk, Asterisk) | (Assign, Assign) | (If, If) |
-          (Else, Else) | (While, While) | (Eq, Eq) | (Ne, Ne) | (Lt, Lt) | (Le, Le) | (Gt, Gt) |
-          (Ge, Ge) =>
-        true
-      case _ => false
+      case (Number(_), Number(_))         => true
+      case (Identifier(_), Identifier(_)) => true
+      case (a, b)                         => a == b
 
   override def toString(): String =
     this match
@@ -51,6 +49,8 @@ enum Token:
       case If                               => "`if`"
       case Else                             => "`else`"
       case While                            => "`while`"
+      case True                             => "`true`"
+      case False                            => "`false`"
       case frontend.lex.Token.Identifier(_) => "identifier"
       case frontend.lex.Token.Number(_)     => "number"
       case LParen                           => "`(`"

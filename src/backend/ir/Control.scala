@@ -1,8 +1,8 @@
 package backend.ir.control
 
-import backend.ir.ir._
-import backend.ir.irvalue._
-import backend.irgen.irbuilder._
+import backend.ir.ir.*
+import backend.ir.irvalue.*
+import backend.irgen.irbuilder.*
 
 trait ControlFlow
 

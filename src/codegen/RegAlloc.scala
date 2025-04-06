@@ -1,6 +1,6 @@
 package codegen.regalloc
 
-import codegen.mvalue._
+import codegen.mvalue.*
 
 trait RegPool:
   val pool: Array[Register]

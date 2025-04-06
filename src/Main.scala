@@ -1,16 +1,16 @@
-import frontend.diagnostics.{printDiagnostics, containsErrors, containsWarnings, containsNotes}
-import frontend.lex.Lexer
-import frontend.parse.Parser
+import frontend.diagnostics.{containsErrors, containsNotes, containsWarnings, printDiagnostics}
 import frontend.ast.printAST
+import frontend.sema.SemaResult
 
-import backend.irgen.asttranslator._
+import backend.irgen.asttranslator.*
 import backend.opt.passmanager.PassManager
 import backend.opt.passmanager.DefaultManager
 import backend.opt.passes.trivialdce.TrivialDCE
 import backend.ir.irvalue.ImmInt
+import backend.opt.passsetup.OptLevel
+
 import overseer.DebugOverseer
 import overseer.DefaultOverseer
-import backend.opt.passsetup.OptLevel
 
 enum Mode:
   case Default
@@ -31,23 +31,25 @@ val optLevel = OptLevel.FullOpt
     try source.mkString
     finally source.close()
 
-  val lexer = overseer.getLexer(input)
+  val lexer                      = overseer.getLexer(input)
+  val parser                     = overseer.getParser(lexer)
+  val (decls, parserDiagnostics) = parser.parse
 
-  val parser = overseer.getParser(lexer)
+  printDiagnostics(input, parserDiagnostics)
+  if parserDiagnostics.containsErrors then return
 
-  val (ast, diagnostics) = parser.parse
+  val SemaResult(ast, semaDiagnostics) = overseer.getSema.run(decls)
+  printDiagnostics(input, semaDiagnostics)
+  if semaDiagnostics.containsErrors then return
 
-  printDiagnostics(input, diagnostics)
-  if diagnostics.containsErrors then return
+  printAST(ast)
 
-  // printAST(ast)
+  // val translator = overseer.getTranslator(ast)
 
-  val translator = overseer.getTranslator(ast)
+  // val ir = translator.gen
+  // ir.foreach((_, actual) => println(actual))
 
-  val ir = translator.gen
-  ir.foreach((_, actual) => println(actual))
-
-  val passmanager = overseer.getPassManager(ir, optLevel)
+  // val passmanager = overseer.getPassManager(ir, optLevel)
 
   // val newIR = passmanager.addPass(TrivialDCE()).perform
   // newIR.foreach((_, actual) => println(actual))

@@ -18,7 +18,7 @@ implicit object SpanOrdering extends Ordering[Span]:
 object Span:
   def unapply(s: Span): (Offset, Offset) = (s.b, s.e)
 
-class WithSpan[T](val value: T, val span: Span):
+class WithSpan[+T](val value: T, val span: Span):
   def map[U](fn: T => U): WithSpan[U] = WithSpan(fn(value), span)
 
 object WithSpan:
@@ -103,6 +103,8 @@ class DefaultLexer(val input: String) extends Lexer:
               case "if"     => Token.If            -> Span(b, b + 1)
               case "else"   => Token.Else          -> Span(b, b + 3)
               case "while"  => Token.While         -> Span(b, b + 4)
+              case "true"   => Token.True          -> Span(b, b + 3)
+              case "false"  => Token.False         -> Span(b, b + 4)
               case s        => Token.Identifier(s) -> Span(b, b + s.length - 1)
           }
           case c if c.isDigit => {

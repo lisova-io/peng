@@ -1,6 +1,6 @@
 package frontend.diagnostics
 
-import frontend.lex.{Lexer, Offset, Token, Span, WithSpan, SpanOrdering}
+import frontend.lex.{Lexer, Offset, Span, SpanOrdering, Token, WithSpan}
 
 object Color:
   private def ansi(code: Any): String = 0x1b.toChar + s"[${code}m"
@@ -32,13 +32,20 @@ enum Severity extends Ordered[Severity]:
 implicit object SeverityOrdering extends Ordering[Severity]:
   override def compare(x: Severity, y: Severity): Int = x.compare(y)
 
-class Diagnostic(val severity: Severity, val span: Span, val msg: String):
-  def unapply: (Severity, Span, String) = (severity, span, msg)
+class Message(val span: Span, val msg: String)
+object Message:
+  def unapply(m: Message): (Span, String) = m.span -> m.msg
+
+class Diagnostic(val severity: Severity, val messages: List[Message]):
+  def this(severity: Severity, span: Span, msg: String) = this(severity, Message(span, msg) :: Nil)
+  def unapply: (Severity, List[Message]) = (severity, messages)
+  def firstMsg: Message                  = messages.head
 
 object Diagnostic:
-  def error(span: Span, msg: String)   = Diagnostic(Severity.Error, span, msg)
-  def warning(span: Span, msg: String) = Diagnostic(Severity.Warning, span, msg)
-  def note(span: Span, msg: String)    = Diagnostic(Severity.Note, span, msg)
+  def error(span: Span, msg: String) = Diagnostic(Severity.Error, span, msg)
+  def error(msgs: List[Message])     = Diagnostic(Severity.Error, msgs)
+  // def warning(span: Span, msg: String) = Diagnostic(Severity.Warning, span, msg)
+  // def note(span: Span, msg: String)    = Diagnostic(Severity.Note, span, msg)
 
 extension (diags: List[Diagnostic])
   def maxSeverity: Option[Severity] =
@@ -70,18 +77,20 @@ def printDiagnostics(input: String, diagnostics: Seq[Diagnostic]): Unit = {
   var firstErr = true
 
   val lines = input.splitIntoLines.zipWithIndex
-  for d <- diagnostics.sortBy(d => (d.span, d.severity)) do
+  for d <- diagnostics.sortBy(d => (d.firstMsg.span, d.severity)) do
     if !firstErr then println()
     firstErr = false
-    println(s"${d.severity}: ${d.msg}")
-    val linesToPrint = lines.filter((l, _) => l._1 <= d.span.e && l._2 >= d.span.b)
-    for line <- linesToPrint do
-      val ((b, e), i)   = line
-      val lineLen       = i.toString.length
-      val frontWithLine = " " * (5 - lineLen) + (i + 1).toString + " | "
-      println(frontWithLine + input.slice(b, e))
-      print("      | ")
-      print(" " * (d.span.b - b) + '^')
-      if d.span.len > 1 then print("~" * (d.span.len - 1))
-      println()
+    print(s"${d.severity}: ")
+    for Message(span, msg) <- d.messages do
+      println(msg)
+      val linesToPrint = lines.filter((l, _) => l._1 <= span.e && l._2 >= span.b)
+      for line <- linesToPrint do
+        val ((b, e), i)   = line
+        val lineLen       = i.toString.length
+        val frontWithLine = " " * (5 - lineLen) + (i + 1).toString + " | "
+        println(frontWithLine + input.slice(b, e))
+        print("      | ")
+        print(" " * (span.b - b) + '^')
+        if span.len > 1 then print("~" * (span.len - 1))
+        println()
 }
