@@ -29,7 +29,7 @@ class FnBuilder extends Builder[Function]:
   var blocks: Vector[BasicBlock] = Vector()
   var name: String               = String()
   var args: List[Value]          = List()
-  var vtype: VType               = VType.unit
+  var vtype: VType               = VType.Unit
   def addBlock(block: BasicBlock): FnBuilder =
     blocks :+= block
     this
@@ -46,7 +46,7 @@ class FnBuilder extends Builder[Function]:
     blocks = Vector()
     name = String()
     args = List()
-    vtype = VType.unit
+    vtype = VType.Unit
     this
   def build: Function =
     Function(blocks, vtype, name, args)

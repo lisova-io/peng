@@ -9,7 +9,7 @@ trait ControlFlow
 class Program(fns: Vector[Function]) extends ControlFlow
 
 case class BasicBlock(name: String, var instrs: Vector[Instr]) extends Value with ControlFlow:
-  override def vtype: VType = VType.unit // idk
+  override def vtype: VType = VType.Unit // idk
   override def toString: String =
     val sep = System.lineSeparator() + "  "
     s"%$name:" + sep + instrs.mkString(sep) + System.lineSeparator()
