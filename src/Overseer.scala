@@ -16,6 +16,8 @@ import frontend.lex.Lexer
 import frontend.lex.DefaultLexer
 import frontend.parse.Parser
 import frontend.parse.DefaultParser
+import frontend.sema.Sema
+import frontend.sema.DefaultSema
 import com.typesafe.scalalogging.StrictLogging
 import backend.ir.control.Program
 
@@ -24,6 +26,7 @@ trait Overseer:
   def getPassManager(program: Program, level: OptLevel): PassManager
   def getLexer(input: String): Lexer
   def getParser(lexer: Lexer): Parser
+  def getSema: Sema
 
 object DebugOverseer extends Overseer with StrictLogging:
   def getLexer(input: String): Lexer =
@@ -36,18 +39,20 @@ object DebugOverseer extends Overseer with StrictLogging:
     logger.warn(s"Using DEFAULT class ${parser.getClass().getName()} in debug mode")
     parser
 
+  def getSema: Sema =
+    val sema = DefaultSema()
+    logger.warn(s"Using DEFAULT class ${sema.getClass().getName()} in debug mode")
+    sema
+
   def getTranslator(ast: AST) = LoggingTranslator(ast)
 
   def getPassManager(program: Program, level: OptLevel) =
     PassSetup(LoggingManager(program), level).configure
 
 object DefaultOverseer extends Overseer:
-  def getLexer(input: String): Lexer =
-    DefaultLexer(input)
-
-  def getParser(lexer: Lexer): Parser = DefaultParser(lexer)
-
+  def getLexer(input: String): Lexer         = DefaultLexer(input)
+  def getParser(lexer: Lexer): Parser        = DefaultParser(lexer)
+  def getSema: Sema                          = DefaultSema()
   def getTranslator(ast: AST): ASTTranslator = DefaultTranslator(ast)
-
   def getPassManager(program: Program, level: OptLevel) =
     PassSetup(DefaultManager(program), level).configure

@@ -1,9 +1,6 @@
-import frontend.diagnostics.{printDiagnostics, containsErrors, containsWarnings, containsNotes}
-import frontend.lex.Lexer
-import frontend.parse.Parser
-import frontend.ast.printAST
+import driver.Driver
 
-import backend.irgen.asttranslator._
+import backend.irgen.asttranslator.*
 import backend.opt.passmanager.PassManager
 import backend.opt.passmanager.DefaultManager
 import backend.opt.passes.trivialdce.TrivialDCE
@@ -11,12 +8,16 @@ import backend.ir.irvalue.ImmInt
 import overseer.DebugOverseer
 import overseer.DefaultOverseer
 import backend.opt.passsetup.OptLevel
-import backend.graphviz._
+import backend.graphviz.*
 import java.io.{File, FileWriter}
 import java.io.PrintWriter
 import backend.ir.control.Program
 import backend.ir.control.BasicBlock
 import backend.ir.irvalue.Label
+import frontend.sema.*
+import diagnostics.*
+import frontend.diagnostics.given
+import frontend.ast.printAST
 
 enum Mode:
   case Default
@@ -105,25 +106,25 @@ def checkImmDoms(ir: Program): Unit =
 
   val parser = overseer.getParser(lexer)
 
-  val (ast, diagnostics) = parser.parse
+  val sema = overseer.getSema
 
-  printDiagnostics(input, diagnostics)
-  if diagnostics.containsErrors then return
+  val (decls, diagnostics) = parser.parse
+
+  val SemaResult(ast, diagnosticsSema) = sema.run(decls)
+
+  // printDiagnostics(input, diagnostics)
 
   // printAST(ast)
+
+  // printDiagnostics(input, diagnosticsSema)
 
   val translator = overseer.getTranslator(ast)
 
   val ir = translator.gen
   print(ir)
   checkPhi(ir)
-  // ir.fns.head._2.insertPhi
+  ir.fns.head._2.insertPhi
 
   val gv = GraphViz.programToGV(ir)
   writeToFile("program.dot", gv.toString)
-
-  val passmanager = overseer.getPassManager(ir, optLevel)
-
-  // val newIR = passmanager.addPass(TrivialDCE()).perform
-  // newIR.foreach((_, actual) => println(actual))
 }

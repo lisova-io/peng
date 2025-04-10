@@ -8,7 +8,7 @@ import scala.collection.mutable.HashSet
 import backend.ir.irvalue.Value
 import backend.opt.passmanager.GlobalPass
 import backend.ir.irvalue.Var
-import backend.ir.ir._
+import backend.ir.ir.*
 
 class TrivialDCE extends GlobalPass:
   private val values: HashSet[Value] = HashSet()
@@ -41,7 +41,7 @@ class TrivialDCE extends GlobalPass:
     processDestValue(instr)
 
   private def processBlock(block: BasicBlock) =
-    for (instr <- block.instrs) do processInstr(instr)
+    for instr <- block.instrs do processInstr(instr)
 
   private def postProcessBlock(block: BasicBlock) =
     val oldLen = block.instrs.length
@@ -53,8 +53,8 @@ class TrivialDCE extends GlobalPass:
     })
     changed = block.instrs.length != oldLen
   override def pass(fn: Function): Function =
-    while (changed) do
+    while changed do
       changed = false
-      for (block <- fn.blocks) do processBlock(block)
-      for (block <- fn.blocks) do postProcessBlock(block)
+      for block <- fn.blocks do processBlock(block)
+      for block <- fn.blocks do postProcessBlock(block)
     fn

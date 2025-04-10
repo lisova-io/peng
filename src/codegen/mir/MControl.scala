@@ -1,12 +1,12 @@
 package codegen.mir.mcontrol
 
-import codegen.mir.mvalue._
+import codegen.mir.mvalue.*
 import scala.collection.mutable.HashMap
-import codegen.mir.minstr._
+import codegen.mir.minstr.*
 import backend.ir.irvalue.VType
 
 class MBBlock(name: MLabel, var instrs: Vector[MInstr]) extends MValue:
-  override def vtype: VType = VType.unit
+  override def vtype: VType = VType.Unit
   override def toString: String =
     if instrs.nonEmpty then
       val sep = System.lineSeparator() + " "
@@ -18,7 +18,7 @@ class MFunction(
     name: MLabel,
     rtype: VType,
     args: List[MValue],
-    blockMap: HashMap[MLabel, MBBlock]
+    blockMap: HashMap[MLabel, MBBlock],
 ) extends MValue:
   override def vtype: VType = rtype
   override def toString: String =

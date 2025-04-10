@@ -1,7 +1,7 @@
 package codegen.mir.minstr
 
-import codegen.mir.mvalue._
-import codegen.mir.mcontrol._
+import codegen.mir.mvalue.*
+import codegen.mir.mcontrol.*
 import backend.ir.irvalue.VType
 import backend.ir.ir.Predicate
 
@@ -33,7 +33,7 @@ class MMov(lhs: MValue, rhs: MValue) extends MInstr:
     rhs.vtype
 
 class MJmp(label: MLabel) extends MInstr:
-  override def vtype: VType = VType.unit
+  override def vtype: VType = VType.Unit
 
 class MRet(ret: MValue) extends MInstr:
   override def vtype: VType = ret.vtype

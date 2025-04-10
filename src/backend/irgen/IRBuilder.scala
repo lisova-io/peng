@@ -1,8 +1,8 @@
 package backend.irgen.irbuilder
 
-import backend.ir.control._
-import backend.ir.ir._
-import backend.ir.irvalue._
+import backend.ir.control.*
+import backend.ir.ir.*
+import backend.ir.irvalue.*
 import scala.collection.mutable.HashMap
 
 // TODO: type-safe builder for function
@@ -30,7 +30,7 @@ class FnBuilder extends Builder[Function]:
   var blocks: Vector[BasicBlock]             = Vector()
   var name: Label                            = Label(String())
   var args: List[Value]                      = List()
-  var vtype: VType                           = VType.unit
+  var vtype: VType                           = VType.Unit
   var blockMap: HashMap[Label, BasicBlock]   = HashMap()
   var labelPreds: HashMap[Label, Set[Label]] = HashMap()
   var vars: HashMap[Var, Set[Label]]         = HashMap()
@@ -56,7 +56,7 @@ class FnBuilder extends Builder[Function]:
     blocks = Vector()
     name = Label(String())
     args = List()
-    vtype = VType.unit
+    vtype = VType.Unit
     blockMap = HashMap()
     labelPreds = HashMap()
     this

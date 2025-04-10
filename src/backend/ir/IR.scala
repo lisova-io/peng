@@ -1,8 +1,8 @@
 package backend.ir.ir
 
-import backend.ir.irvalue._
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.Stack
+import backend.ir.irvalue.*
 
 sealed trait Instr
 
@@ -94,7 +94,7 @@ case class Call(dest: Value, fn: Label, args: List[Value])
     s"$dest = call $vtype $fn " + args.mkString(", ") + ";"
 
 case class Jmp(label: Label) extends Value with Instr:
-  override def vtype: VType = VType.unit
+  override def vtype: VType = VType.Unit
   override def toString: String =
     s"jmp $label"
 
@@ -133,7 +133,7 @@ case class Phi(dest: Value, var vals: List[Var], var defined: List[Label])
   override def getDest: Value       = dest
   override def getArgs: List[Value] = vals
   override def vtype: VType         = dest.vtype
-  override def toString: String = s"$dest = phi $vtype"
+  override def toString: String = s"$dest = phi $vtype "
     + vals.zip(defined).mkString(", ")
 
 case class Cmp(dest: Value, pred: Predicate, lhs: Value, rhs: Value)
@@ -143,6 +143,6 @@ case class Cmp(dest: Value, pred: Predicate, lhs: Value, rhs: Value)
     with NonVoid:
   override def getDest: Value          = dest
   override def getArgs: (Value, Value) = (lhs, rhs)
-  override def vtype: VType            = VType.bool
+  override def vtype: VType            = VType.Bool
   override def toString: String =
     s"$dest = cmp $vtype $pred $lhs $rhs"

@@ -1,7 +1,7 @@
 package backend.graphviz
 
-import backend.ir.control._
-import backend.ir.ir._
+import backend.ir.control.*
+import backend.ir.ir.*
 import backend.ir.irvalue.ImmInt
 
 class GraphVizNode(val node: String):

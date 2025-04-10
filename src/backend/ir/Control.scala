@@ -1,8 +1,8 @@
 package backend.ir.control
 
-import backend.ir.ir._
-import backend.ir.irvalue._
-import backend.irgen.irbuilder._
+import backend.ir.ir.*
+import backend.ir.irvalue.*
+import backend.irgen.irbuilder.*
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
 import scala.collection.immutable.Set
@@ -20,7 +20,7 @@ class Program(val fns: HashMap[String, Function]) extends ControlFlow:
 case class BasicBlock(name: Label, var instrs: Vector[Instr]) extends Value with ControlFlow:
   def addInstruction(instr: Instr): Unit = instrs :+= instr
   val phis: HashMap[Var, Phi]            = HashMap()
-  override def vtype: VType              = VType.unit // idk
+  override def vtype: VType              = VType.Unit // idk
   def varDefined(v: Var): Boolean =
     boundary:
       for instr <- instrs do
@@ -64,7 +64,7 @@ case class Function(
     args: List[Value],
     blockMap: HashMap[Label, BasicBlock],
     blockPreds: HashMap[Label, Set[Label]],
-    vars: HashMap[Var, Set[Label]]
+    vars: HashMap[Var, Set[Label]],
 ) extends Value
     with ControlFlow:
 
@@ -77,7 +77,7 @@ case class Function(
 
   private def closest(
       sdoms: HashMap[Label, Set[Label]],
-      block: Label
+      block: Label,
   ): Label =
     def closer(b1: Label, b2: Label): Label =
       if sdoms(b1).contains(b2) then b1
