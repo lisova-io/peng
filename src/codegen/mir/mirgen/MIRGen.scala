@@ -1,12 +1,12 @@
 package codegen.mir.mirgen
 
 import backend.ir.control.Program
-import backend.ir.irvalue._
-import backend.ir.control._
-import backend.ir.ir._
-import codegen.mir.mvalue._
-import codegen.mir.minstr._
-import codegen.mir.mcontrol._
+import backend.ir.irvalue.*
+import backend.ir.control.*
+import backend.ir.ir.*
+import codegen.mir.mvalue.*
+import codegen.mir.minstr.*
+import codegen.mir.mcontrol.*
 
 trait MIRGen:
   def gen(value: Value): MValue

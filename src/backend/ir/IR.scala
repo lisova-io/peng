@@ -1,6 +1,6 @@
 package backend.ir.ir
 
-import backend.ir.irvalue._
+import backend.ir.irvalue.*
 
 sealed trait Instr
 
@@ -87,7 +87,7 @@ case class Call(dest: Value, fn: Label, args: List[Value]) extends Value with In
     s"$dest = call $vtype $fn" + args.foldLeft((acc: String, arg: Value) => acc + " " + arg) + ";"
 
 case class Jmp(label: Label) extends Value with Instr:
-  override def vtype: VType = VType.unit
+  override def vtype: VType = VType.Unit
   override def toString: String =
     s"jmp $label"
 
@@ -118,6 +118,6 @@ case class Cmp(dest: Value, pred: Predicate, lhs: Value, rhs: Value)
     with NonVoid:
   override def getDest: Value          = dest
   override def getArgs: (Value, Value) = (lhs, rhs)
-  override def vtype: VType            = VType.bool
+  override def vtype: VType            = VType.Bool
   override def toString: String =
     s"$dest = cmp $vtype $pred $lhs $rhs"

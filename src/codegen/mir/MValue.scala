@@ -10,13 +10,13 @@ trait Symbol
 trait Imm extends MValue
 
 class MLabel(name: String) extends MValue with Symbol:
-  def vtype: VType = VType.label
+  def vtype: VType = VType.Label
 
 class MVar(input: String, vartype: VType) extends MValue:
   def vtype: VType = vartype
 
 class MInt(input: BigInt) extends MValue with Imm:
-  def vtype: VType = VType.i32
+  def vtype: VType = VType.I32
 
 class MBool(input: Boolean) extends MValue with Imm:
-  def vtype: VType = VType.bool
+  def vtype: VType = VType.Bool

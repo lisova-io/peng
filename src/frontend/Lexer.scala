@@ -11,14 +11,14 @@ type Offset = Int
 class Span(val b: Offset, val e: Offset):
   def len: Offset = e - b + 1
 
-implicit object SpanOrdering extends Ordering[Span]:
-  override def compare(x: Span, y: Span): Int =
+given Ordering[Span] with
+  def compare(x: Span, y: Span): Int =
     if x.b == y.b then x.e compare y.e else x.b compare y.b
 
 object Span:
   def unapply(s: Span): (Offset, Offset) = (s.b, s.e)
 
-class WithSpan[T](val value: T, val span: Span):
+class WithSpan[+T](val value: T, val span: Span):
   def map[U](fn: T => U): WithSpan[U] = WithSpan(fn(value), span)
 
 object WithSpan:
@@ -103,6 +103,8 @@ class DefaultLexer(val input: String) extends Lexer:
               case "if"     => Token.If            -> Span(b, b + 1)
               case "else"   => Token.Else          -> Span(b, b + 3)
               case "while"  => Token.While         -> Span(b, b + 4)
+              case "true"   => Token.True          -> Span(b, b + 3)
+              case "false"  => Token.False         -> Span(b, b + 4)
               case s        => Token.Identifier(s) -> Span(b, b + s.length - 1)
           }
           case c if c.isDigit => {

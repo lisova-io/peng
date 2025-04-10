@@ -1,20 +1,19 @@
 package backend.irgen.asttranslator
 
-import frontend.ast._
+import frontend.ast.*
 import frontend.lex.WithSpan
-import backend.ir.ir._
-import backend.ir.control._
-import backend.ir.irvalue._
+import backend.ir.ir.*
+import backend.ir.control.*
+import backend.ir.irvalue.*
 import backend.irgen.irbuilder.BBuilder
 import backend.irgen.irbuilder.FnBuilder
 import scala.collection.mutable.HashMap
-import com.typesafe.scalalogging._
+import com.typesafe.scalalogging.*
 import scala.collection.mutable
 
 // TODO: Generic wrap for logging
 
-type AST      = HashMap[Name, Decl]
-type ASTType  = Option[WithSpan[Type]]
+type ASTType  = WithSpan[Type]
 type ASTFnArg = (WithSpan[String], WithSpan[Type])
 
 sealed trait ASTTranslator:
@@ -105,7 +104,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
     val right = genNode(rhs)
     val dest = op match
       case BinOp.Assign => left
-      case _            => ctx.genVirtualReg(VType.i32)
+      case _            => ctx.genVirtualReg(VType.I32)
     op match
       case BinOp.Plus =>
         blockBuilder.addInstr(Add(dest, left, right))
@@ -126,9 +125,18 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
   protected def astTypeToIR(tp: ASTType): VType =
     def getType(t: Type): VType =
       t match
-        case Type.I32  => VType.i32
-        case Type.Bool => VType.bool
-    tp.map(span => getType(span.value)).getOrElse(VType.unit)
+        case Type.I8                   => ???
+        case Type.U8                   => ???
+        case Type.I16                  => ???
+        case Type.U16                  => ???
+        case Type.I32                  => VType.I32
+        case Type.U32                  => ???
+        case Type.I64                  => ???
+        case Type.U64                  => ???
+        case Type.Bool                 => VType.Bool
+        case Type.Unit                 => VType.Unit
+        case Type.Undef | Type.Invalid => ??? // something went terribly wrong
+    getType(tp.value)
 
   /*
    * Generate intermediate representation for function call expression.
@@ -157,7 +165,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
       const: Boolean,
       name: String,
       tp: ASTType,
-      value: Expr
+      value: Expr,
   ): Value =
     val vtype = astTypeToIR(tp)
     val rhs   = genNode(value)
@@ -210,7 +218,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
     Void()
 
   protected def genVarRef(name: String): Value =
-    Var(name, VType.i32)
+    Var(name, VType.I32)
 
   protected def fullReset: Unit =
     fnBuilder.reset
@@ -232,7 +240,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
   protected def genIf(
       cond: Expr,
       onTrue: BlockStmt,
-      onFalse: Option[BlockStmt | IfStmt]
+      onFalse: Option[BlockStmt | IfStmt],
   ): Label =
     val condVal   = genNode(cond)
     val trueLabel = ctx.genIfThenLabel
@@ -266,7 +274,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
       name: String,
       params: List[ASTFnArg],
       rtype: ASTType,
-      body: Block
+      body: Block,
   ) =
     // fullReset
     fnBuilder.reset
@@ -275,7 +283,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
     val vtype = astTypeToIR(rtype)
     val paramsNoSpan = params.foreach((astArg, astType) => {
       val arg   = astArg.value
-      val vtype = astTypeToIR(Some(astType))
+      val vtype = astTypeToIR(astType)
       fnBuilder.addArg(Var(arg, vtype))
     })
     val irBody = genBlock(body)
@@ -294,7 +302,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
       case CallExpr(name, args)            => genNodeCall(name.value, args)
       case VarDecl(const, name, tp, value) => genNodeVDecl(const, name.value, tp, value)
       case RetStmt(expr)                   => genNodeRet(expr)
-      case VoidRetStmt                     => genNodeRet()
+      case UnitRetStmt(_)                  => genNodeRet()
       case BlockStmt(block)                => genBlock(block)
       case VarRefExpr(name)                => genVarRef(name.value)
       case DeclStmt(decl)                  => genDecl(decl)
@@ -364,7 +372,7 @@ final class LoggingTranslator(ast: AST, ctx: TranslatorCtx = LoggingCtx())
       const: Boolean,
       name: String,
       tp: ASTType,
-      value: Expr
+      value: Expr,
   ): Value =
     logCall("genNodeVDecl", super.genNodeVDecl(const, name, tp, value), const, name, tp, value)
 
