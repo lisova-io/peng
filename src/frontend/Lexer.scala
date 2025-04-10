@@ -11,8 +11,8 @@ type Offset = Int
 class Span(val b: Offset, val e: Offset):
   def len: Offset = e - b + 1
 
-implicit object SpanOrdering extends Ordering[Span]:
-  override def compare(x: Span, y: Span): Int =
+given Ordering[Span] with
+  def compare(x: Span, y: Span): Int =
     if x.b == y.b then x.e compare y.e else x.b compare y.b
 
 object Span:

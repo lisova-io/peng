@@ -8,7 +8,7 @@ import scala.util.boundary, boundary.break
 import scala.collection.mutable.HashMap
 
 extension [A, B](e1: Either[A, B])
-  def andThen[A1 >: A, B1](e2: Either[A1, B1]): Either[A1, B1] = e1.flatMap(_ => e2)
+  def andThen[A1 >: A, B1](e2: => Either[A1, B1]): Either[A1, B1] = e1.flatMap(_ => e2)
 
 type ParseResult[T] = Either[List[Diagnostic], T]
 

@@ -1,8 +1,7 @@
 package frontend.sema
 
 import frontend.ast.*
-import frontend.diagnostics.Diagnostic
-import frontend.diagnostics.Message
+import frontend.diagnostics.{Diagnostic, Message}
 import scala.collection.mutable.{HashMap, HashSet}
 import frontend.lex.{Span, WithSpan}
 import scala.collection.immutable.LazyList.cons
