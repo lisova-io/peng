@@ -112,18 +112,17 @@ def checkImmDoms(ir: Program): Unit =
 
   val SemaResult(ast, diagnosticsSema) = sema.run(decls)
 
-  // printDiagnostics(input, diagnostics)
+  printDiagnostics(input, diagnostics)
 
-  // printAST(ast)
+  printAST(ast)
 
-  // printDiagnostics(input, diagnosticsSema)
+  printDiagnostics(input, diagnosticsSema)
 
   val translator = overseer.getTranslator(ast)
 
   val ir = translator.gen
-  print(ir)
+  // print(ir)
   checkPhi(ir)
-  ir.fns.head._2.insertPhi
 
   val gv = GraphViz.programToGV(ir)
   writeToFile("program.dot", gv.toString)

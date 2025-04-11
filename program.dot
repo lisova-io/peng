@@ -1,3 +1,14 @@
 digraph program {
+    "if.else1" -> "after.if2"
+    "if.then2" -> "after.if2"
+    "loop.exit1" -> "if.else1"
+    "loop.exit1" -> "if.then2"
+    "loop.body1" -> "loop.cond1"
+    "loop.cond1" -> "loop.exit1"
+    "loop.cond1" -> "loop.body1"
+    "after.if1" -> "loop.cond1"
+    "if.then1" -> "after.if1"
+    "foo" -> "after.if1"
+    "foo" -> "if.then1"
     
 }

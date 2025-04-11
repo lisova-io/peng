@@ -18,9 +18,9 @@ class Program(val fns: HashMap[String, Function]) extends ControlFlow:
     fns.mkString(System.lineSeparator())
 
 case class BasicBlock(name: Label, var instrs: Vector[Instr]) extends Value with ControlFlow:
-  def addInstruction(instr: Instr): Unit = instrs :+= instr
-  val phis: HashMap[Var, Phi]            = HashMap()
-  override def vtype: VType              = VType.Unit // idk
+  def addInstruction(instr: Instr): Unit    = instrs :+= instr
+  val phis: HashMap[Var, (Phi, Set[Label])] = HashMap()
+  override def vtype: VType                 = VType.Unit // idk
   def varDefined(v: Var): Boolean =
     boundary:
       for instr <- instrs do
@@ -31,12 +31,13 @@ case class BasicBlock(name: Label, var instrs: Vector[Instr]) extends Value with
 
   def insertPhi(v: Var, l: Label): Unit =
     phis.get(v) match
-      case Some(phi) =>
+      case Some((phi, set)) =>
         phi.add(v, l)
+        phis(v) = (phi, set + l)
       case None =>
         val phi = Phi(v, List(v), List(l))
         instrs +:= phi
-        phis.addOne(v -> phi)
+        phis.addOne(v -> (phi, Set(l)))
 
   def renamePhi(l: Label, stacks: HashMap[Var, Stack[Var]]): Unit =
     instrs = instrs.map(i =>
@@ -70,6 +71,8 @@ case class Function(
 
   override def vtype: VType = rtype
 
+  private var varDefs: HashMap[Var, Label] = HashMap()
+
   override def toString: String =
     s"$rtype $name(" + args.mkString(", ")
       + "): {" + System.lineSeparator()
@@ -86,16 +89,37 @@ case class Function(
     sds.foldLeft(sds.head)((acc, b) => closer(acc, b))
 
   def rename =
-    val dtree                            = domTree
-    val stacks: HashMap[Var, Stack[Var]] = vars.map((v, _) => v -> Stack(v))
-    val renamer                          = Renamer()
+    val dtree = domTree
+
+    val stacks: HashMap[Var, Stack[Var]] =
+      val vars = for
+        block <- blocks
+        instr <- block.instrs if instr.isInstanceOf[NonVoid]
+      yield
+        val nv = instr.asInstanceOf[NonVoid]
+        val v = nv.getDest match
+          case v: Var => v
+          case _      => ???
+        v -> Stack(v)
+      vars.to(HashMap)
+
+    val renamer                      = Renamer()
+    val newVars: HashMap[Var, Label] = HashMap()
     renameBlock(blockMap(name))
+    varDefs = newVars
     def renameBlock(b: BasicBlock): Unit =
-      b.instrs = b.instrs.map(instr => renamer.rename(instr, stacks, b.name))
+      b.instrs = b.instrs.map(instr =>
+        val newInstr = renamer.rename(instr, stacks, b.name)
+        newInstr match
+          case nv: NonVoid => newVars.addOne(nv.getDest.asInstanceOf[Var] -> b.name)
+          case _           => ()
+        newInstr
+      )
       for suc <- b.getSuccessors do blockMap(suc).renamePhi(b.name, stacks)
       if dtree.contains(b.name) then dtree(b.name).foreach(l => renameBlock(blockMap(l)))
 
   def insertPhi =
+    println(vars)
     val stack: Stack[Label] = Stack()
     val df                  = dominationFrontier
     val sdom                = strictDominators
@@ -106,8 +130,13 @@ case class Function(
 
         if df contains defLabel then
           for domfLabel <- df(defLabel) do
-            val domfBlock = blockMap(domfLabel)
-            if !domfBlock.phis.contains(v) then
+            boundary:
+              val domfBlock = blockMap(domfLabel)
+              val opt       = domfBlock.phis.get(v)
+              opt match
+                case Some((_, labels)) =>
+                  if labels.contains(defLabel) then break()
+                case _ => ()
               domfBlock.insertPhi(v, defLabel)
               stack.push(domfLabel)
               if blockPreds.contains(domfLabel) && sdom.contains(domfLabel) then
@@ -116,15 +145,7 @@ case class Function(
                   if sdom(domfLabel).contains(bp) then
                     if blockMap(bp).varDefined(v) then domfBlock.insertPhi(v, bp)
 
-    // blocks.foreach(block =>
-    //   block.instrs = block.instrs.filterNot(instr =>
-    //     instr match
-    //       case Phi(dest, vals, defined) => if vals.length < 2 then true else false
-    //       case _                        => false
-    //   )
-    // )
     rename
-    print(this)
 
   def domTree: HashMap[Label, List[Label]] =
     def addToMap[K, V](key: K, value: V, m: HashMap[K, List[V]]) =

@@ -654,6 +654,6 @@ class DefaultSema extends Sema:
       >> TypePropagationPass
       >> IntLitTypeDeductionPass
       >> TypeDeductionPass
-      >> TypeCheckPass
+    // >> TypeCheckPass
 
   def run(decls: List[Decl]): SemaResult[AST] = passes.run(decls)
