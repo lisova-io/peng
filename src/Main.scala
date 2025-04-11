@@ -18,6 +18,7 @@ import frontend.sema.*
 import diagnostics.*
 import frontend.diagnostics.given
 import frontend.ast.printAST
+import backend.ir.evaluator.Eval
 
 enum Mode:
   case Default
@@ -50,7 +51,7 @@ def checkDoms(ir: Program): Unit =
 
 def checkPhi(ir: Program): Unit =
   ir.fns.foreach((_, f) =>
-    f.insertPhi
+    f.ssa
     println(f)
   )
 
@@ -122,7 +123,10 @@ def checkImmDoms(ir: Program): Unit =
 
   val ir = translator.gen
   // print(ir)
-  checkPhi(ir)
+  // checkPhi(ir)
+  val eval = Eval(ir).eval
+
+  println(eval)
 
   val gv = GraphViz.programToGV(ir)
   writeToFile("program.dot", gv.toString)

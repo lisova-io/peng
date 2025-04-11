@@ -1,18 +1,22 @@
+fn main() {
+  foo(32);
+}
+
 fn foo(i: i32) i32 {
   var a = i;
+  var b = a + 1;
   i = a + 1;
   if i > 0 {
     a = a + i;
-  }
-
-  while i > 0 {
-    i = i + 1;
+    b = a + a;
   }
 
   if a <= 0 {
     a = a - 1;
+    b = a + 1;
   } else {
-    a = 31;
+    a = 31 + b;
+    b = a - 1;
   }
   return a;
 }
