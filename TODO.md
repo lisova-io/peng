@@ -20,6 +20,9 @@ few usecases we have for logging. Also configuration of it is sheise.
 
 ## Backend
 
+### SSA gen
+- refactor this wholeeee shit. like it works, but my god
+
 ### IR
 - Write data structure for instructions and basicblocks(holy shit scala collections suck).
 
