@@ -47,11 +47,10 @@ given BaseDiagnosticsPrinter[Diagnostic, String] with
           println()
   }
 
-private def getPairs[T](items: Seq[T]): Seq[(T, T)] = {
+private def getPairs[T](items: Seq[T]): Seq[(T, T)] =
   items match
     case x +: (next @ (y +: tail)) => (x, y) +: getPairs(next)
     case _                         => Seq()
-}
 
 extension (s: String)
   def splitIntoLines: Seq[(Int, Int)] =

@@ -4,9 +4,8 @@ import frontend.ast.*
 import frontend.diagnostics.{Diagnostic, Message}
 import scala.collection.mutable.{HashMap, HashSet}
 import frontend.lex.{Span, WithSpan}
-import scala.collection.immutable.LazyList.cons
 import scala.collection.MapView
-import scala.runtime.stdLibPatches.language.experimental.clauseInterleaving
+import diagnostics.containsErrors
 
 class SemaResult[+T](val value: T, val diagnostics: List[Diagnostic]) {
   def this(v: T) = this(v, Nil)
@@ -116,7 +115,12 @@ private object NameCorrectnessCheckPass extends Pass[List[Decl], AST] {
       diagnostics :++= diags
     }
 
-    SemaResult(HashMap.from(decls.map(d => (d.getName.value, d))), diagnostics)
+    SemaResult(
+      if diagnostics.containsErrors
+      then HashMap()
+      else HashMap.from(decls.map(d => (d.getName.value, d))),
+      diagnostics,
+    )
   }
 }
 

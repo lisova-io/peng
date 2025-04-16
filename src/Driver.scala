@@ -5,6 +5,7 @@ import diagnostics.{containsErrors, containsNotes, containsWarnings, printDiagno
 
 import frontend.ast.printAST
 import frontend.sema.SemaResult
+import frontend.diagnostics.given
 
 import backend.irgen.asttranslator.*
 import backend.opt.passsetup.OptLevel
@@ -39,7 +40,41 @@ object Driver {
 
   // private def execute(pipelines: Pipeline): Unit = ???
 
-  def main(args: String*) = ???
+  def main(args: String*): Unit = {
+    // val overseer = mode match
+    //   case Mode.Debug   => DebugOverseer
+    //   case Mode.Default => DefaultOverseer
+
+    val overseer = DebugOverseer
+
+    val source = scala.io.Source.fromFile("input.txt")
+    val input =
+      try source.mkString
+      finally source.close()
+
+    val lexer                      = overseer.getLexer(input)
+    val parser                     = overseer.getParser(lexer)
+    val (decls, parserDiagnostics) = parser.parse
+
+    printDiagnostics(input, parserDiagnostics)
+    if parserDiagnostics.containsErrors then return
+
+    val SemaResult(ast, semaDiagnostics) = overseer.getSema.run(decls)
+    printDiagnostics(input, semaDiagnostics)
+    if semaDiagnostics.containsErrors then return
+
+    printAST(ast)
+
+    // val translator = overseer.getTranslator(ast)
+
+    // val ir = translator.gen
+    // ir.foreach((_, actual) => println(actual))
+
+    // val passmanager = overseer.getPassManager(ir, optLevel)
+
+    // val newIR = passmanager.addPass(TrivialDCE()).perform
+    // newIR.foreach((_, actual) => println(actual))
+  }
   // val g = parseArgs(args)
   // execute(g)
 }

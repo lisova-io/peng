@@ -1,1 +1,6 @@
+val foo = bar;
+val bar = foo;
 
+fn main() {
+  val b: i32 = true;
+}
