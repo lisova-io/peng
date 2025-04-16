@@ -187,26 +187,25 @@ private object InitializerLoopCheckPass extends Pass[AST, AST] {
       case NumLitExpr(_, _) | BoolLitExpr(_) => (HashSet(), ctx)
 
   override def run(ast: AST): SemaResult[AST] = {
-    val varDecls = ast
-      .filter(p =>
-        p._2 match
-          case d: FnDecl  => false
-          case d: VarDecl => true
-      )
     val deps: MapView[Name, HashSet[Name]] =
-      varDecls.mapValues(getDeps(_, Ctx(ast, HashSet()))._1)
+      ast.mapValues(getDeps(_, Ctx(ast, HashSet()))._1)
 
     var diagnostics = List[Diagnostic]()
     var newAst: AST = HashMap()
+    var badNames    = HashSet[Name]()
     for (name, decl) <- ast do {
       decl match
         case d: FnDecl => newAst += (name, decl)
         case VarDecl(_, name, _, _) if deps(name.value).contains(name.value) =>
           diagnostics :+= Diagnostic.error(name.span, "dependency loop in initializer")
+          badNames += name.value
         case VarDecl(_, _, _, _) => newAst += (name, decl)
     }
 
-    SemaResult(newAst, diagnostics)
+    SemaResult(
+      newAst.filter(p => deps(p._1).intersect(badNames).isEmpty),
+      diagnostics,
+    )
   }
 }
 

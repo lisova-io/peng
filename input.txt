@@ -1,6 +1,7 @@
-val foo = bar;
-val bar = foo;
+fn foo() i32 {
+	return bar();
+}
 
-fn main() {
-  val b: i32 = true;
+fn bar() i32 {
+	return foo();
 }
