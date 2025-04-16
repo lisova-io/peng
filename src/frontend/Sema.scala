@@ -2,9 +2,11 @@ package frontend.sema
 
 import frontend.ast.*
 import frontend.diagnostics.{Diagnostic, Message}
-import scala.collection.mutable.{HashMap, HashSet}
 import frontend.lex.{Span, WithSpan}
+
+import scala.collection.mutable.{HashMap, HashSet}
 import scala.collection.MapView
+
 import diagnostics.containsErrors
 
 class SemaResult[+T](val value: T, val diagnostics: List[Diagnostic]) {
@@ -268,7 +270,7 @@ private object TypePropagationPass extends Pass[AST, AST] {
       case vre @ VarRefExpr(name) => vre
       case CallExpr(name, args) => {
         ast.get(name.value).get match
-          case FnDecl(name, params, rettype, body) =>
+          case FnDecl(_, params, rettype, body) =>
             val newArgs = args
               .zip(params)
               .map(arg => {
@@ -505,6 +507,58 @@ private object TypeDeductionPass extends Pass[AST, AST] {
     )
 }
 
+private object ArgsAmountCheckPass extends Pass[AST, AST] {
+  private def check(e: Expr, ast: AST): List[Diagnostic] =
+    e match
+      case BinExpr(_, lhs, rhs) => check(lhs, ast) :++ check(rhs, ast)
+      case VarRefExpr(_)        => Nil
+      case UnaryExpr(_, e)      => check(e, ast)
+      case NumLitExpr(_, _)     => Nil
+      case BoolLitExpr(_)       => Nil
+      case CallExpr(WithSpan(name, span), args) =>
+        val fn: FnDecl = ast.get(name).get match
+          case f: FnDecl => f
+          case _         => ??? // this should be unreachable for now
+        val res =
+          if args.length < fn.params.length then
+            Diagnostic.error(
+              span,
+              s"too few arguments for call of function $name: expected ${fn.params.length}, but got ${args.length}",
+            ) :: Nil
+          else if args.length > fn.params.length then
+            Diagnostic.error(
+              span,
+              s"too many arguments for call of function $name: expected ${fn.params.length}, but got ${args.length}",
+            ) :: Nil
+          else Nil
+        res :++ args.foldLeft(Nil)((l, e) => l :++ check(e, ast))
+
+  private def check(s: Stmt, ast: AST): List[Diagnostic] =
+    s match
+      case BlockStmt(b) => check(b, ast)
+      case ExprStmt(e)  => check(e, ast)
+      case IfStmt(cond, tBr, fBr) =>
+        check(cond, ast) :++ check(tBr, ast) :++ fBr.map(check(_, ast)).getOrElse(Nil)
+      case WhileStmt(cond, body) => check(cond, ast) :++ check(body.block, ast)
+      case DeclStmt(d)           => check(d, ast)
+      case RetStmt(e)            => check(e, ast)
+      case UnitRetStmt(_)        => Nil
+
+  private def check(b: Block, ast: AST): List[Diagnostic] =
+    b.foldLeft(Nil)((d, s) => d :++ check(s, ast))
+
+  private def check(d: Decl, ast: AST): List[Diagnostic] =
+    d match
+      case FnDecl(name, params, rettype, body) => check(body.block, ast)
+      case VarDecl(const, name, tp, value)     => check(value, ast)
+
+  override def run(ast: AST): SemaResult[AST] = {
+    val diagnostics: List[Diagnostic] =
+      ast.foldLeft(Nil)((diags, decl) => diags :++ check(decl._2, ast))
+    SemaResult(ast, diagnostics)
+  }
+}
+
 private object TypeCheckPass extends Pass[AST, AST] {
   private type Ctx = HashMap[Name, (Type, Option[Decl])]
 
@@ -654,6 +708,7 @@ class DefaultSema extends Sema:
   final private val passes: Pass[List[Decl], AST] =
     NameCorrectnessCheckPass
       >> InitializerLoopCheckPass
+      >> ArgsAmountCheckPass
       >> TypePropagationPass
       >> IntLitTypeDeductionPass
       >> TypeDeductionPass

@@ -1,7 +1,7 @@
-fn foo() i32 {
-	return bar();
+fn bar() i32 {
+    return foo(1, 2, 3);
 }
 
-fn bar() i32 {
-	return foo();
+fn foo(i: i32, j: i32) i32 {
+    return bar(3);
 }
