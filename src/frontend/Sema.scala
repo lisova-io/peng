@@ -422,7 +422,10 @@ private object TypeDeductionPass extends Pass[AST, AST] {
 
   private def deduceTypes(d: VarDecl, ctx: Ctx): SemaResult[VarDecl] =
     val VarDecl(c, n, tp, value) = d
-    deduceTypes(value, ctx).map(res => VarDecl(c, n, WithSpan(res._2, res._1.getSpan), res._1))
+    tp.value match
+      case Type.Undef =>
+        deduceTypes(value, ctx).map(res => VarDecl(c, n, WithSpan(res._2, res._1.getSpan), res._1))
+      case _ => SemaResult(d)
 
   private def deduceTypes(d: Decl, ctx: Ctx): SemaResult[Decl] =
     d match
