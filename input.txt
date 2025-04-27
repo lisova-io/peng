@@ -1,7 +1,11 @@
 fn bar() i32 {
-    return foo(1, 2, 3);
+
 }
 
-fn foo(i: i32, j: i32) i32 {
-    return bar(3);
+fn bar() i32 {
+  val a: i32 = true;
+}
+
+fn foo() bool {
+  return 42;
 }

@@ -1,3 +1,3 @@
 import driver.Driver
 
-@main def main(args: String*): Unit = Driver.main(args*)
+@main def main(args: String*): Unit = Driver.run(args)

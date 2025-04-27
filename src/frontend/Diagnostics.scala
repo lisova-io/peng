@@ -3,7 +3,7 @@ package frontend.diagnostics
 import frontend.lex.Span
 import frontend.lex.given
 import diagnostics.Diagnostic as BaseDiagnostic
-import diagnostics.DiagnosticsPrinter as BaseDiagnosticsPrinter
+import diagnostics.Diagnostics as BaseDiagnostics
 import diagnostics.Severity
 import diagnostics.given
 
@@ -22,9 +22,8 @@ object Diagnostic:
 // def warning(span: Span, msg: String) = Diagnostic(Severity.Warning, span, msg)
 // def note(span: Span, msg: String)    = Diagnostic(Severity.Note, span, msg)
 
-given BaseDiagnosticsPrinter[Diagnostic, String] with
-  type Context = String
-  override def run(input: String, diagnostics: Seq[Diagnostic]): Unit = {
+class Diagnostics(val input: String) extends BaseDiagnostics[Diagnostic]:
+  override def printDiagnostics(diagnostics: Seq[Diagnostic]): Unit = {
     if diagnostics.isEmpty then return
 
     var firstDiagnostic = true
