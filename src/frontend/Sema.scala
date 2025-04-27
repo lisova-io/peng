@@ -2,11 +2,13 @@ package frontend.sema
 
 import frontend.ast.*
 import frontend.diagnostics.{Diagnostic, Message}
-import scala.collection.mutable.{HashMap, HashSet}
 import frontend.lex.{Span, WithSpan}
-import scala.collection.immutable.LazyList.cons
+
+import scala.collection.mutable.{HashMap, HashSet}
 import scala.collection.MapView
-import scala.runtime.stdLibPatches.language.experimental.clauseInterleaving
+
+import diagnostics.containsErrors
+import scala.util.hashing.Hashing
 
 class SemaResult[+T](val value: T, val diagnostics: List[Diagnostic]) {
   def this(v: T) = this(v, Nil)
@@ -99,24 +101,26 @@ private object NameCorrectnessCheckPass extends Pass[List[Decl], AST] {
 
     for decl <- decls do {
       val name = decl.getName
-      if names.contains(name.value) then {
+      if names.contains(name.value) then
         diagnostics :+= Diagnostic.error(
           Message(name.span, s"redefinition of `${name.value}`") ::
             Message(spanMap(name.value), s"previously defined here")
             :: Nil
         )
-      } else {
+      else {
         names += name.value
         spanMap += (name.value, name.span)
       }
     }
 
-    for decl <- decls do {
+    var ast: AST = HashMap()
+    for decl <- decls.distinctBy(_.getName.value) do {
       val SemaResult(_, diags) = check(decl, names)
       diagnostics :++= diags
+      if !diags.containsErrors then ast += (decl.getName.value, decl)
     }
 
-    SemaResult(HashMap.from(decls.map(d => (d.getName.value, d))), diagnostics)
+    SemaResult(ast, diagnostics)
   }
 }
 
@@ -183,26 +187,25 @@ private object InitializerLoopCheckPass extends Pass[AST, AST] {
       case NumLitExpr(_, _) | BoolLitExpr(_) => (HashSet(), ctx)
 
   override def run(ast: AST): SemaResult[AST] = {
-    val varDecls = ast
-      .filter(p =>
-        p._2 match
-          case d: FnDecl  => false
-          case d: VarDecl => true
-      )
     val deps: MapView[Name, HashSet[Name]] =
-      varDecls.mapValues(getDeps(_, Ctx(ast, HashSet()))._1)
+      ast.mapValues(getDeps(_, Ctx(ast, HashSet()))._1)
 
     var diagnostics = List[Diagnostic]()
     var newAst: AST = HashMap()
+    var badNames    = HashSet[Name]()
     for (name, decl) <- ast do {
       decl match
         case d: FnDecl => newAst += (name, decl)
         case VarDecl(_, name, _, _) if deps(name.value).contains(name.value) =>
           diagnostics :+= Diagnostic.error(name.span, "dependency loop in initializer")
+          badNames += name.value
         case VarDecl(_, _, _, _) => newAst += (name, decl)
     }
 
-    SemaResult(newAst, diagnostics)
+    SemaResult(
+      newAst.filter(p => deps(p._1).intersect(badNames).isEmpty),
+      diagnostics,
+    )
   }
 }
 
@@ -265,7 +268,7 @@ private object TypePropagationPass extends Pass[AST, AST] {
       case vre @ VarRefExpr(name) => vre
       case CallExpr(name, args) => {
         ast.get(name.value).get match
-          case FnDecl(name, params, rettype, body) =>
+          case FnDecl(_, params, rettype, body) =>
             val newArgs = args
               .zip(params)
               .map(arg => {
@@ -417,7 +420,10 @@ private object TypeDeductionPass extends Pass[AST, AST] {
 
   private def deduceTypes(d: VarDecl, ctx: Ctx): SemaResult[VarDecl] =
     val VarDecl(c, n, tp, value) = d
-    deduceTypes(value, ctx).map(res => VarDecl(c, n, WithSpan(res._2, res._1.getSpan), res._1))
+    tp.value match
+      case Type.Undef =>
+        deduceTypes(value, ctx).map(res => VarDecl(c, n, WithSpan(res._2, res._1.getSpan), res._1))
+      case _ => SemaResult(d)
 
   private def deduceTypes(d: Decl, ctx: Ctx): SemaResult[Decl] =
     d match
@@ -502,6 +508,58 @@ private object TypeDeductionPass extends Pass[AST, AST] {
     )
 }
 
+private object ArgsAmountCheckPass extends Pass[AST, AST] {
+  private def check(e: Expr, ast: AST): List[Diagnostic] =
+    e match
+      case BinExpr(_, lhs, rhs) => check(lhs, ast) :++ check(rhs, ast)
+      case VarRefExpr(_)        => Nil
+      case UnaryExpr(_, e)      => check(e, ast)
+      case NumLitExpr(_, _)     => Nil
+      case BoolLitExpr(_)       => Nil
+      case CallExpr(WithSpan(name, span), args) =>
+        val fn: FnDecl = ast.get(name).get match
+          case f: FnDecl => f
+          case _         => ??? // this should be unreachable for now
+        val res =
+          if args.length < fn.params.length then
+            Diagnostic.error(
+              span,
+              s"too few arguments for call of function $name: expected ${fn.params.length}, but got ${args.length}",
+            ) :: Nil
+          else if args.length > fn.params.length then
+            Diagnostic.error(
+              span,
+              s"too many arguments for call of function $name: expected ${fn.params.length}, but got ${args.length}",
+            ) :: Nil
+          else Nil
+        res :++ args.foldLeft(Nil)((l, e) => l :++ check(e, ast))
+
+  private def check(s: Stmt, ast: AST): List[Diagnostic] =
+    s match
+      case BlockStmt(b) => check(b, ast)
+      case ExprStmt(e)  => check(e, ast)
+      case IfStmt(cond, tBr, fBr) =>
+        check(cond, ast) :++ check(tBr, ast) :++ fBr.map(check(_, ast)).getOrElse(Nil)
+      case WhileStmt(cond, body) => check(cond, ast) :++ check(body.block, ast)
+      case DeclStmt(d)           => check(d, ast)
+      case RetStmt(e)            => check(e, ast)
+      case UnitRetStmt(_)        => Nil
+
+  private def check(b: Block, ast: AST): List[Diagnostic] =
+    b.foldLeft(Nil)((d, s) => d :++ check(s, ast))
+
+  private def check(d: Decl, ast: AST): List[Diagnostic] =
+    d match
+      case FnDecl(name, params, rettype, body) => check(body.block, ast)
+      case VarDecl(const, name, tp, value)     => check(value, ast)
+
+  override def run(ast: AST): SemaResult[AST] = {
+    val diagnostics: List[Diagnostic] =
+      ast.foldLeft(Nil)((diags, decl) => diags :++ check(decl._2, ast))
+    SemaResult(ast, diagnostics)
+  }
+}
+
 private object TypeCheckPass extends Pass[AST, AST] {
   private type Ctx = HashMap[Name, (Type, Option[Decl])]
 
@@ -517,7 +575,7 @@ private object TypeCheckPass extends Pass[AST, AST] {
         typeCheck(
           body.block,
           rettype,
-          ctx ++ params.map(arg => arg._1.value -> (arg._2.value -> None)),
+          ctx ++ params.map(p => p._1.value -> (p._2.value -> None)),
         )
       case VarDecl(const, name, tp, value) => typeCheck(value, Some(tp.value), ctx)._2
 
@@ -595,15 +653,16 @@ private object TypeCheckPass extends Pass[AST, AST] {
           else t
         (opTp, d :++ opCheckDiags)
       case VarRefExpr(name) =>
-        val v: VarDecl = ctx.get(name.value).get._2.get match
-          case v: VarDecl => v
-          case _          => ??? // this should not be reachable
-        if tp.isEmpty || checkTypes(tp.get, v.tp.value)
-        then (v.tp.value, Nil)
+        val vtp = ctx.get(name.value).get._1
+        //  match
+        // case Some(v: VarDecl) => v.tp.value
+        // case _          => ??? // this should not be reachable
+        if tp.isEmpty || checkTypes(tp.get, vtp)
+        then (vtp, Nil)
         else
           Type.Invalid -> (Diagnostic.error(
             name.span,
-            s"expected ${tp.get}, got ${v.tp.value}",
+            s"expected ${tp.get}, got ${vtp}",
           ) :: Nil)
       case CallExpr(name, args) =>
         val fn: FnDecl = ctx.get(name.value).get._2.get match
@@ -640,20 +699,83 @@ private object TypeCheckPass extends Pass[AST, AST] {
     SemaResult(ast, diagnostics)
 }
 
+private object AssignmentCorrectnessCheckPass extends Pass[AST, AST] {
+  private class Ctx(private var constVars: HashMap[Name, VarDecl] = HashMap()) {
+    def addOne(d: (Name, VarDecl)): Ctx = {
+      if d._2.const then Ctx(constVars += d)
+      else this
+    }
+
+    def `+` = addOne
+
+    def isConst(name: Name): Boolean = constVars.get(name).map(_.const).getOrElse(false)
+  }
+
+  private object Ctx {
+    def fromAST(ast: AST): Ctx = {
+      var res = Ctx()
+      for (n, d) <- ast do
+        d match
+          case _: FnDecl   => ()
+          case vd: VarDecl => res += (n, vd)
+      res
+    }
+  }
+
+  private def check(e: Expr, ctx: Ctx): List[Diagnostic] =
+    e match
+      case BinExpr(WithSpan(BinOp.Assign, span), lhs, rhs) =>
+        check(lhs, ctx) :++ check(rhs, ctx)
+      case BinExpr(_, lhs, rhs) => check(lhs, ctx) :++ check(rhs, ctx)
+      case VarRefExpr(_)        => Nil
+      case UnaryExpr(_, e)      => check(e, ctx)
+      case NumLitExpr(_, _)     => Nil
+      case BoolLitExpr(_)       => Nil
+      case CallExpr(_, args)    => args.map(check(_, ctx)).fold(Nil)(_ :++ _)
+
+  private def check(s: Stmt, ctx: Ctx): List[Diagnostic] =
+    s match
+      case BlockStmt(b) => check(b, ctx)
+      case ExprStmt(e)  => check(e, ctx)
+      case IfStmt(cond, tBr, fBr) =>
+        check(cond, ctx) :++ check(tBr, ctx) :++ fBr.map(check(_, ctx)).getOrElse(Nil)
+      case WhileStmt(cond, body) => check(cond, ctx) :++ check(body.block, ctx)
+      case DeclStmt(d)           => check(d, ctx)
+      case RetStmt(e)            => check(e, ctx)
+      case UnitRetStmt(_)        => Nil
+
+  private def check(b: Block, ctx: Ctx): List[Diagnostic] =
+    b.foldLeft(Nil)((d, s) => d :++ check(s, ctx))
+
+  private def check(d: Decl, ctx: Ctx): List[Diagnostic] =
+    d match
+      case FnDecl(name, params, rettype, body) => check(body.block, ctx)
+      case VarDecl(const, name, tp, value)     => check(value, ctx)
+
+  override def run(ast: AST): SemaResult[AST] = {
+    var ctx = Ctx.fromAST(ast)
+
+    val diagnostics: List[Diagnostic] =
+      ast.foldLeft(Nil)((diags, decl) => diags :++ check(decl._2, ctx))
+    SemaResult(ast, diagnostics)
+  }
+}
+
 trait Sema:
   def run(decls: List[Decl]): SemaResult[AST]
 
 class DefaultSema extends Sema:
   /* TODO:
-    - const-correctness check
     - `is callable?` check
    */
   final private val passes: Pass[List[Decl], AST] =
     NameCorrectnessCheckPass
       >> InitializerLoopCheckPass
+      >> ArgsAmountCheckPass
       >> TypePropagationPass
       >> IntLitTypeDeductionPass
       >> TypeDeductionPass
-    // >> TypeCheckPass
+      >> TypeCheckPass
+    // >> AssignmentCorrectnessCheckPass
 
   def run(decls: List[Decl]): SemaResult[AST] = passes.run(decls)

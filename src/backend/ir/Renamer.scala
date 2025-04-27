@@ -17,9 +17,7 @@ class Renamer:
     if stacks contains v then stacks(v).top else v
 
   def rrPhi(phi: Phi, stacks: HashMap[Var, Stack[Var]], label: Label): Phi =
-    val dest: Var = phi.dest match
-      case v: Var => v
-      case _      => ???
+    val dest: Var = phi.dest
     stacks(dest).push(Var(s"%$counter", dest.vtype))
     val top = stacks(dest).top
     counter += 1
@@ -29,9 +27,7 @@ class Renamer:
     Phi(top, vals, phi.defined)
 
   def renameNV(instr: NonVoid, stacks: HashMap[Var, Stack[Var]], label: Label): Instr =
-    val dest: Var = instr.getDest match
-      case v: Var => v
-      case _      => ???
+    val dest: Var = instr.getDest
     stacks(dest).push(Var(s"%$counter", dest.vtype))
     counter += 1
     instr match

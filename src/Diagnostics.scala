@@ -33,17 +33,13 @@ enum Severity extends Ordered[Severity] {
 given Ordering[Severity] with
   def compare(x: Severity, y: Severity): Int = x.compare(y)
 
-trait DiagnosticsPrinter[D <: Diagnostic, Ctx]:
-  def run(ctx: Ctx, diagnostics: Seq[D]): Unit
-
 trait Diagnostic(val severity: Severity)
+
+trait Diagnostics[D <: Diagnostic]:
+  def printDiagnostics(diags: Seq[D]): Unit
 
 extension (diags: Seq[Diagnostic]) {
   def containsErrors: Boolean   = diags.find(_.severity == Severity.Error).isDefined
   def containsWarnings: Boolean = diags.find(_.severity == Severity.Warning).isDefined
   def containsNotes: Boolean    = diags.find(_.severity == Severity.Note).isDefined
 }
-
-def printDiagnostics[D <: Diagnostic, Ctx](ctx: Ctx, diagnostics: Seq[D])(using
-    printer: DiagnosticsPrinter[D, Ctx]
-): Unit = printer.run(ctx, diagnostics)

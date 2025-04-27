@@ -10,6 +10,7 @@ import scala.annotation.internal.RuntimeChecked
 import scala.util.boundary, boundary.break
 import scala.collection.mutable.Stack
 import backend.ir.renamer.Renamer
+import scala.collection.mutable.ArrayBuffer
 
 trait ControlFlow
 
@@ -71,6 +72,8 @@ case class Function(
 
   override def vtype: VType = rtype
 
+  private var ssad = false
+
   private var varDefs: HashMap[Var, Label] = HashMap()
 
   override def toString: String =
@@ -97,9 +100,7 @@ case class Function(
         instr <- block.instrs if instr.isInstanceOf[NonVoid]
       yield
         val nv = instr.asInstanceOf[NonVoid]
-        val v = nv.getDest match
-          case v: Var => v
-          case _      => ???
+        val v  = nv.getDest
         v -> Stack(v)
       vars.to(HashMap)
 
@@ -108,18 +109,44 @@ case class Function(
     renameBlock(blockMap(name))
     varDefs = newVars
     def renameBlock(b: BasicBlock): Unit =
+      val pushed: ArrayBuffer[Var] = ArrayBuffer()
       b.instrs = b.instrs.map(instr =>
+        instr match
+          case nv: NonVoid => pushed.addOne(nv.getDest)
+          case _           => ()
         val newInstr = renamer.rename(instr, stacks, b.name)
         newInstr match
-          case nv: NonVoid => newVars.addOne(nv.getDest.asInstanceOf[Var] -> b.name)
-          case _           => ()
+          case nv: NonVoid =>
+            val dest = nv.getDest
+            newVars.addOne(dest -> b.name)
+          case _ => ()
         newInstr
       )
       for suc <- b.getSuccessors do blockMap(suc).renamePhi(b.name, stacks)
       if dtree.contains(b.name) then dtree(b.name).foreach(l => renameBlock(blockMap(l)))
+      for v <- pushed do stacks(v).pop()
 
-  def insertPhi =
-    println(vars)
+  // this one is for evaluator purposes only :)
+  def destroySSA: Unit =
+    def copy(toCopy: Var, v: Var, l: Label) =
+      val block = blockMap(l)
+      block.instrs = block.instrs.init.appended(Mov(toCopy, v)).appended(block.instrs.last)
+    blocks.map(b =>
+      b.instrs.map(i =>
+        i match
+          case Phi(dest, vals, defined) =>
+            vals.zip(defined).map((v, l) => copy(dest.asInstanceOf[Var], v, l))
+          case _ => ()
+      )
+    )
+    blocks.map(b => b.instrs = b.instrs.filterNot(i => i.isInstanceOf[Phi]))
+
+  def ssa: Unit =
+    if !ssad then
+      ssaFn
+      ssad = true
+
+  private def ssaFn: Unit =
     val stack: Stack[Label] = Stack()
     val df                  = dominationFrontier
     val sdom                = strictDominators

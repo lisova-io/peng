@@ -134,8 +134,8 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
         left match
           case v: Var =>
             fnBuilder.addVar(v, blockBuilder.name)
+            v
           case _ => ???
-        left
       case _ => ctx.genVirtualReg(VType.I32, fnBuilder, blockBuilder.name)
     op match
       case BinOp.Plus =>
@@ -145,7 +145,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
       case BinOp.Mul =>
         blockBuilder.addInstr(Mul(dest, left, right))
       case BinOp.Assign =>
-        blockBuilder.addInstr(Mov(left, right))
+        blockBuilder.addInstr(Mov(dest, right))
       case BinOp.Lt | BinOp.Le | BinOp.Eq | BinOp.Ge | BinOp.Gt | BinOp.Ne =>
         blockBuilder.addInstr(Cmp(dest, genPredicate(op), left, right))
     dest

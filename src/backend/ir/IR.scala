@@ -16,78 +16,78 @@ sealed trait VarOp:
   def getArgs: List[Value]
 
 sealed trait NonVoid:
-  def getDest: Value
+  def getDest: Var
 
-case class Add(dest: Value, lhs: Value, rhs: Value)
+case class Add(dest: Var, lhs: Value, rhs: Value)
     extends Value
     with Instr
     with BinaryOp
     with NonVoid:
 
-  def getDest: Value          = dest
+  def getDest: Var            = dest
   def getArgs: (Value, Value) = (lhs, rhs)
   override def vtype: VType   = dest.vtype
   override def toString: String =
     s"$dest = add $vtype $lhs, $rhs;"
 
-case class Sub(dest: Value, lhs: Value, rhs: Value)
+case class Sub(dest: Var, lhs: Value, rhs: Value)
     extends Value
     with Instr
     with BinaryOp
     with NonVoid:
 
-  def getDest: Value          = dest
+  def getDest: Var            = dest
   def getArgs: (Value, Value) = (lhs, rhs)
   override def vtype: VType   = dest.vtype
   override def toString: String =
     s"$dest = sub $vtype $lhs, $rhs;"
 
-case class Neg(dest: Value, operand: Value) extends Value with Instr with UnaryOp with NonVoid:
+case class Neg(dest: Var, operand: Value) extends Value with Instr with UnaryOp with NonVoid:
 
-  def getDest: Value         = dest
+  def getDest: Var           = dest
   override def getArg: Value = operand
   override def vtype: VType  = dest.vtype
   override def toString: String =
     s"$dest = neg $vtype $operand"
 
-case class Mul(dest: Value, lhs: Value, rhs: Value)
+case class Mul(dest: Var, lhs: Value, rhs: Value)
     extends Value
     with Instr
     with BinaryOp
     with NonVoid:
 
-  def getDest: Value                   = dest
+  def getDest: Var                     = dest
   override def getArgs: (Value, Value) = (lhs, rhs)
   override def vtype: VType            = dest.vtype
   override def toString: String =
     s"$dest = mul $vtype $lhs, $rhs;"
 
-case class Div(dest: Value, lhs: Value, rhs: Value)
+case class Div(dest: Var, lhs: Value, rhs: Value)
     extends Value
     with Instr
     with BinaryOp
     with NonVoid:
 
-  def getDest: Value                   = dest
+  def getDest: Var                     = dest
   override def getArgs: (Value, Value) = (lhs, rhs)
   override def vtype: VType            = dest.vtype
   override def toString: String =
     s"$dest = div $vtype $lhs, $rhs;"
 
-case class Mov(lhs: Value, rhs: Value) extends Value with Instr with UnaryOp with NonVoid:
+case class Mov(lhs: Var, rhs: Value) extends Value with Instr with UnaryOp with NonVoid:
 
-  def getDest: Value         = lhs
+  def getDest: Var           = lhs
   override def getArg: Value = rhs
   override def vtype: VType  = lhs.vtype
   override def toString: String =
     s"$lhs = mov $vtype $rhs;"
 
-case class Call(dest: Value, fn: Label, args: List[Value])
+case class Call(dest: Var, fn: Label, args: List[Value])
     extends Value
     with Instr
     with VarOp
     with NonVoid:
-  def getDest: Value        = dest
+  def getDest: Var          = dest
   def getArgs: List[Value]  = args
   override def vtype: VType = dest.vtype
   override def toString: String =
@@ -118,7 +118,7 @@ enum Predicate:
   case le
   case ge
 
-case class Phi(dest: Value, var vals: List[Var], var defined: List[Label])
+case class Phi(dest: Var, var vals: List[Var], var defined: List[Label])
     extends Value
     with Instr
     with VarOp
@@ -130,18 +130,18 @@ case class Phi(dest: Value, var vals: List[Var], var defined: List[Label])
   def add(v: Var, l: Label): Unit =
     vals :+= v
     defined :+= l
-  override def getDest: Value       = dest
+  override def getDest: Var         = dest
   override def getArgs: List[Value] = vals
   override def vtype: VType         = dest.vtype
   override def toString: String = s"$dest = phi $vtype "
     + vals.zip(defined).mkString(", ")
 
-case class Cmp(dest: Value, pred: Predicate, lhs: Value, rhs: Value)
+case class Cmp(dest: Var, pred: Predicate, lhs: Value, rhs: Value)
     extends Value
     with Instr
     with BinaryOp
     with NonVoid:
-  override def getDest: Value          = dest
+  override def getDest: Var            = dest
   override def getArgs: (Value, Value) = (lhs, rhs)
   override def vtype: VType            = VType.Bool
   override def toString: String =
