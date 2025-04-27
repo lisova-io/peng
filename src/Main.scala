@@ -111,9 +111,9 @@ def checkImmDoms(ir: Program): Unit =
 
   val (decls, diagnostics) = parser.parse
 
-  val SemaResult(ast, diagnosticsSema) = sema.run(decls)
-
   printDiagnostics(input, diagnostics)
+
+  val SemaResult(ast, diagnosticsSema) = sema.run(decls)
 
   printAST(ast)
 
