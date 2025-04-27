@@ -84,7 +84,7 @@ case class Call(dest: Value, fn: Label, args: List[Value]) extends Value with In
   def getArgs: List[Value]  = args
   override def vtype: VType = dest.vtype
   override def toString: String =
-    s"$dest = call $vtype $fn" + args.foldLeft((acc: String, arg: Value) => acc + " " + arg) + ";"
+    s"$dest = call $vtype $fn " + args.mkString(", ") + ";"
 
 case class Jmp(label: Label) extends Value with Instr:
   override def vtype: VType = VType.Unit
@@ -110,6 +110,20 @@ enum Predicate:
   case gt
   case le
   case ge
+
+case class Phi(dest: Value, var vals: List[Var], var defined: List[Label])
+    extends Value
+    with Instr
+    with VarOp
+    with NonVoid:
+  def add(v: Var, l: Label): Unit =
+    vals :+= v
+    defined :+= l
+  override def getDest: Value       = dest
+  override def getArgs: List[Value] = vals
+  override def vtype: VType         = dest.vtype
+  override def toString: String = s"$dest = phi $vtype"
+    + vals.zip(defined).mkString(", ")
 
 case class Cmp(dest: Value, pred: Predicate, lhs: Value, rhs: Value)
     extends Value

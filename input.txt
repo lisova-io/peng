@@ -1,11 +1,1 @@
-fn bar() i32 {
 
-}
-
-fn bar() i32 {
-  val a: i32 = true;
-}
-
-fn foo() bool {
-  return 42;
-}

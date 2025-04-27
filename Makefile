@@ -1,5 +1,5 @@
 run: 
 	./mill --ticker false run
 
-gv:
+gv: run
 	dot -Tsvg program.dot > resources/program.svg
