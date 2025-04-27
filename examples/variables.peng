@@ -1,0 +1,5 @@
+fn main() i32 {
+	var i = 10;
+	i = i + 5;
+	return i;
+}

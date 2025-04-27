@@ -118,6 +118,14 @@ private object NameCorrectnessCheckPass extends Pass[List[Decl], AST] {
       val SemaResult(_, diags) = check(decl, names)
       diagnostics :++= diags
       if !diags.containsErrors then ast += (decl.getName.value, decl)
+      else
+        ast += (
+          decl.getName.value,
+          decl match
+            case FnDecl(name, params, rettype, body) =>
+              FnDecl(name, params, rettype, BlockStmt(Nil))
+            case VarDecl(const, name, tp, value) => VarDecl(const, name, tp, null),
+        )
     }
 
     SemaResult(ast, diagnostics)
@@ -267,8 +275,8 @@ private object TypePropagationPass extends Pass[AST, AST] {
         else b
       case vre @ VarRefExpr(name) => vre
       case CallExpr(name, args) => {
-        ast.get(name.value).get match
-          case FnDecl(_, params, rettype, body) =>
+        ast.get(name.value) match
+          case Some(FnDecl(_, params, rettype, body)) =>
             val newArgs = args
               .zip(params)
               .map(arg => {
@@ -276,6 +284,7 @@ private object TypePropagationPass extends Pass[AST, AST] {
                 propagateType(e, t.value, ast)
               })
             CallExpr(name, newArgs)
+          case None => CallExpr(name, args)
           // this should be unreachable for now because variables are not callable
           case _ => ???
       }
@@ -490,7 +499,7 @@ private object TypeDeductionPass extends Pass[AST, AST] {
           diagnostics :++= d
           e2._1
         )
-        SemaResult((CallExpr(name, newArgs), ctx(name.value)), diagnostics)
+        SemaResult((CallExpr(name, newArgs), ctx.getOrElse(name.value, Type.Invalid)), diagnostics)
       case UnaryExpr(op, e) => deduceTypes(e, ctx).map(res => (UnaryExpr(op, res._1), res._2))
       case n @ NumLitExpr(tp, ws @ WithSpan(value, span)) => SemaResult((n, tp))
       case b: BoolLitExpr                                 => SemaResult((b, Type.Bool))
@@ -517,9 +526,10 @@ private object ArgsAmountCheckPass extends Pass[AST, AST] {
       case NumLitExpr(_, _)     => Nil
       case BoolLitExpr(_)       => Nil
       case CallExpr(WithSpan(name, span), args) =>
-        val fn: FnDecl = ast.get(name).get match
-          case f: FnDecl => f
-          case _         => ??? // this should be unreachable for now
+        val fn: FnDecl = ast.get(name) match
+          case Some(f: FnDecl) => f
+          case None            => return Nil
+          case _               => ??? // this should be unreachable for now
         val res =
           if args.length < fn.params.length then
             Diagnostic.error(
@@ -665,9 +675,10 @@ private object TypeCheckPass extends Pass[AST, AST] {
             s"expected ${tp.get}, got ${vtp}",
           ) :: Nil)
       case CallExpr(name, args) =>
-        val fn: FnDecl = ctx.get(name.value).get._2.get match
-          case fn: FnDecl => fn
-          case _          => ??? // this should not be reachable
+        val fn: FnDecl = ctx.get(name.value) match
+          case Some(_, Some(fn: FnDecl)) => fn
+          case None                      => return (Type.Invalid, Nil)
+          case _                         => ??? // this should not be reachable
         fn.rettype.value ->
           args
             .zip(fn.params)

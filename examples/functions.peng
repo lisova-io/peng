@@ -1,0 +1,12 @@
+fn foo(a: i32) i32 {
+	return a * 2;
+}
+
+fn bar(x: i32) i32 {
+	return x + 14;
+}
+
+fn main() i32 {
+	val v = foo(37);
+	return bar(v);
+}

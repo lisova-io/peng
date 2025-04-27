@@ -1,0 +1,6 @@
+val foo = 3 * bar;
+val bar = 42 + foo;
+
+fn main() i32 {
+	return foo;
+}

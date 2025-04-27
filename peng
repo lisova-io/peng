@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+./mill --ticker false run $@

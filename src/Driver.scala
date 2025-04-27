@@ -15,6 +15,7 @@ import backend.ir.evaluator.Eval
 
 enum Command:
   case PrintAst(val src: List[String])
+  case PrintIr(val src: List[String])
   case Run(val src: List[String])
 
 enum Mode:
@@ -68,13 +69,19 @@ def parsePrintAst: Parser[Command] =
     src <- parseSource.many
   } yield Command.PrintAst(src)
 
+def parsePrintIr: Parser[Command] =
+  for {
+    _   <- Parser.literal("ir")
+    src <- parseSource.many
+  } yield Command.PrintIr(src)
+
 def parseRun: Parser[Command] =
   for {
     _   <- Parser.literal("run")
     src <- parseSource.many
   } yield Command.Run(src)
 
-def parseCmd: Parser[Command] = parsePrintAst <|> parseRun
+def parseCmd: Parser[Command] = parsePrintAst <|> parsePrintIr <|> parseRun
 
 def parseOptions: Parser[Options] =
   for {
@@ -91,40 +98,53 @@ object Driver:
   private def mapFile[T](file: String, f: String => T): T =
     val source = scala.io.Source.fromFile(file)
     val input =
-      try source.mkString
+      try source.mkString.replace("\t", "    ")
       finally source.close()
     f(input)
 
-  private def parseAndPrintAST(filename: String)(input: String): Unit =
-    println(s"$filename:")
+  private def parse(input: String): Option[List[frontend.ast.Decl]] =
     val lexer                      = overseer.getLexer(input)
     val parser                     = overseer.getParser(lexer)
     val (decls, parserDiagnostics) = parser.parse
     frontend.diagnostics.Diagnostics(input).printDiagnostics(parserDiagnostics)
-    if parserDiagnostics.containsErrors then return
-    val SemaResult(ast, semaDiagnostics) = overseer.getSema.run(decls)
-    frontend.diagnostics.Diagnostics(input).printDiagnostics(semaDiagnostics)
-    if semaDiagnostics.containsErrors then return
-    printAST(ast)
+    if parserDiagnostics.containsErrors then None else Some(decls)
 
-  private def executeFile(input: String): Unit =
-    val lexer                      = overseer.getLexer(input)
-    val parser                     = overseer.getParser(lexer)
-    val (decls, parserDiagnostics) = parser.parse
-    frontend.diagnostics.Diagnostics(input).printDiagnostics(parserDiagnostics)
-    if parserDiagnostics.containsErrors then return
+  private def runSema(input: String, decls: List[frontend.ast.Decl]): Option[frontend.ast.AST] =
     val SemaResult(ast, semaDiagnostics) = overseer.getSema.run(decls)
     frontend.diagnostics.Diagnostics(input).printDiagnostics(semaDiagnostics)
-    if semaDiagnostics.containsErrors then return
-    val translator = overseer.getTranslator(ast)
-    val ir         = translator.gen
-    println(Eval(ir).eval)
+    if semaDiagnostics.containsErrors then None else Some(ast)
+
+  private def genIr(ast: frontend.ast.AST): backend.ir.control.Program =
+    overseer.getTranslator(ast).gen
+
+  private def parseAndPrintAST(filename: String)(input: String) =
+    println(s"$filename:")
+    for {
+      decls <- parse(input)
+      ast   <- runSema(input, decls)
+    } printAST(ast)
+
+  private def printIr(filename: String)(input: String) =
+    println(s"$filename:")
+    for {
+      decls <- parse(input)
+      ast   <- runSema(input, decls)
+      ir = genIr(ast)
+    } println(ir)
+
+  private def executeFile(filename: String)(input: String): Unit =
+    println(s"$filename:")
+    for {
+      decls <- parse(input)
+      ast   <- runSema(input, decls)
+      ir = genIr(ast)
+    } println(Eval(ir).eval)
 
   def run(args: Seq[String]): Unit =
     parseOptions.run(args) match
       case Left(err) => println(err)
       case Right((options, _)) =>
         options.cmd match
-          case Command.Run(src)      => src.foreach(f => mapFile(f, executeFile))
+          case Command.Run(src)      => src.foreach(f => mapFile(f, executeFile(f)))
           case Command.PrintAst(src) => src.foreach(f => mapFile(f, parseAndPrintAST(f)))
-end Driver
+          case Command.PrintIr(src)  => src.foreach(f => mapFile(f, printIr(f)))
