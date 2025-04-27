@@ -12,12 +12,18 @@ import overseer.DebugOverseer
 import overseer.DefaultOverseer
 import scala.collection.mutable.HashMap
 import backend.ir.evaluator.Eval
+import sys.process.given
+import java.io.PrintWriter
+import java.io.File
+import java.nio.file.Files
+import java.nio.file.Paths
 
 enum Command:
   case Help
   case PrintAst(val src: List[String])
   case PrintIr(val src: List[String])
   case Run(val src: List[String])
+  case Graph(val src: List[String])
 
 enum Mode:
   case Debug
@@ -50,11 +56,12 @@ class Parser[T](val run: Seq[String] => Either[String, (T, Seq[String])]):
 
 object Parser:
   def pure[T](x: T): Parser[T] = Parser(in => Right(x -> in))
-  def literal(s: String): Parser[String] = Parser(in =>
+  def literal(s: String, expected: String = null): Parser[String] = Parser(in =>
+    val exp = if expected == null then s else expected
     in.headOption match
-      case None                      => Left(s"expected `$s`, got nothing")
+      case None                      => Left(s"expected `$exp`, got nothing")
       case Some(value) if value == s => Right(value, in.tail)
-      case Some(value)               => Left(s"expected `$s`, got `$value`")
+      case Some(value)               => Left(s"expected `$exp`, got `$value`")
   )
   def anyString: Parser[String] = Parser(in =>
     in.headOption match
@@ -82,10 +89,17 @@ def parseRun: Parser[Command] =
     src <- parseSource.many
   } yield Command.Run(src)
 
+def parseGraph: Parser[Command] =
+  for {
+    _   <- Parser.literal("graph")
+    src <- parseSource.many
+  } yield Command.Graph(src)
+
 def parseCmd: Parser[Command] =
   Parser.literal("help").replace(Command.Help) <|>
     parsePrintAst <|>
     parsePrintIr <|>
+    parseGraph <|>
     parseRun
 
 def parseOptions: Parser[Options] =
@@ -145,6 +159,26 @@ object Driver:
       ir = genIr(ast)
     } println(Eval(ir).eval)
 
+  private def writeToFile(path: String, msg: String): Unit =
+    val pw = PrintWriter(File(path))
+    try pw.write(msg)
+    finally pw.close()
+
+  private def graph(filename: String)(input: String): Unit =
+    for {
+      decls <- parse(input)
+      ast   <- runSema(input, decls)
+      ir = genIr(ast)
+    } {
+      val gv      = backend.graphviz.GraphViz.programToGV(filename, ir)
+      val outFile = Paths.get("graphs/" + filename).normalize()
+      val outDir  = outFile.getParent();
+      Files.createDirectories(outDir)
+      writeToFile(outFile.toString + ".dot", gv.toString)
+      val svg = ("dot -Tsvg " + outFile.toString + ".dot").!!
+      writeToFile(outFile.toString + ".svg", svg)
+    }
+
   private def printHelp =
     println("""peng compiler
 
@@ -152,7 +186,8 @@ available commands:
   help             print this message
   run <FILES...>   execute code from given source files
   ast <FILES...>   print abstract syntax trees for given source files
-  ir <FILES...>    generate and print intermediate representation for given source files""")
+  ir <FILES...>    generate and print intermediate representation for given source files
+  graph <FILES...> generate .svg files with IR CFG for given files""")
 
   def run(args: Seq[String]): Unit =
     parseOptions.run(args) match
@@ -163,3 +198,4 @@ available commands:
           case Command.Run(src)      => src.foreach(f => mapFile(f, executeFile(f)))
           case Command.PrintAst(src) => src.foreach(f => mapFile(f, parseAndPrintAST(f)))
           case Command.PrintIr(src)  => src.foreach(f => mapFile(f, printIr(f)))
+          case Command.Graph(src)    => src.foreach(f => mapFile(f, graph(f)))

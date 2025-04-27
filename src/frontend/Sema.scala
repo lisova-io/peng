@@ -664,9 +664,6 @@ private object TypeCheckPass extends Pass[AST, AST] {
         (opTp, d :++ opCheckDiags)
       case VarRefExpr(name) =>
         val vtp = ctx.get(name.value).get._1
-        //  match
-        // case Some(v: VarDecl) => v.tp.value
-        // case _          => ??? // this should not be reachable
         if tp.isEmpty || checkTypes(tp.get, vtp)
         then (vtp, Nil)
         else
@@ -711,32 +708,35 @@ private object TypeCheckPass extends Pass[AST, AST] {
 }
 
 private object AssignmentCorrectnessCheckPass extends Pass[AST, AST] {
-  private class Ctx(private var constVars: HashMap[Name, VarDecl] = HashMap()) {
-    def addOne(d: (Name, VarDecl)): Ctx = {
-      if d._2.const then Ctx(constVars += d)
-      else this
-    }
-
-    def `+` = addOne
-
-    def isConst(name: Name): Boolean = constVars.get(name).map(_.const).getOrElse(false)
+  private class ConstVars(private var constVars: HashSet[Name] = HashSet()) {
+    def addOne(d: Name): ConstVars   = ConstVars(constVars += d)
+    def `+`                          = addOne
+    def isConst(name: Name): Boolean = constVars.contains(name)
   }
 
-  private object Ctx {
-    def fromAST(ast: AST): Ctx = {
-      var res = Ctx()
+  private object ConstVars {
+    def fromAST(ast: AST): ConstVars = {
+      var res = ConstVars()
       for (n, d) <- ast do
         d match
-          case _: FnDecl   => ()
-          case vd: VarDecl => res += (n, vd)
+          case vd: VarDecl if vd.const => res += n
+          case _                       => ()
       res
     }
   }
 
-  private def check(e: Expr, ctx: Ctx): List[Diagnostic] =
+  private def check(e: Expr, ctx: ConstVars): List[Diagnostic] =
     e match
       case BinExpr(WithSpan(BinOp.Assign, span), lhs, rhs) =>
-        check(lhs, ctx) :++ check(rhs, ctx)
+        lhs match
+          case VarRefExpr(name) =>
+            if !ctx.isConst(name.value) then Nil
+            else
+              Diagnostic.error(
+                name.span,
+                s"cannot assign a new value to a non-mutable variable",
+              ) :: Nil
+          case _ => Diagnostic.error(e.getSpan, s"cannot assign to this expression") :: Nil
       case BinExpr(_, lhs, rhs) => check(lhs, ctx) :++ check(rhs, ctx)
       case VarRefExpr(_)        => Nil
       case UnaryExpr(_, e)      => check(e, ctx)
@@ -744,7 +744,7 @@ private object AssignmentCorrectnessCheckPass extends Pass[AST, AST] {
       case BoolLitExpr(_)       => Nil
       case CallExpr(_, args)    => args.map(check(_, ctx)).fold(Nil)(_ :++ _)
 
-  private def check(s: Stmt, ctx: Ctx): List[Diagnostic] =
+  private def check(s: Stmt, ctx: ConstVars): List[Diagnostic] =
     s match
       case BlockStmt(b) => check(b, ctx)
       case ExprStmt(e)  => check(e, ctx)
@@ -755,20 +755,24 @@ private object AssignmentCorrectnessCheckPass extends Pass[AST, AST] {
       case RetStmt(e)            => check(e, ctx)
       case UnitRetStmt(_)        => Nil
 
-  private def check(b: Block, ctx: Ctx): List[Diagnostic] =
-    b.foldLeft(Nil)((d, s) => d :++ check(s, ctx))
+  private def check(b: Block, _ctx: ConstVars): List[Diagnostic] =
+    var ctx                     = _ctx
+    var diags: List[Diagnostic] = Nil
+    for s <- b do
+      diags :++= check(s, ctx)
+      s match
+        case DeclStmt(d: VarDecl) if d.const => ctx += d.name.value
+        case _                               => ()
+    diags
 
-  private def check(d: Decl, ctx: Ctx): List[Diagnostic] =
+  private def check(d: Decl, ctx: ConstVars): List[Diagnostic] =
     d match
       case FnDecl(name, params, rettype, body) => check(body.block, ctx)
       case VarDecl(const, name, tp, value)     => check(value, ctx)
 
   override def run(ast: AST): SemaResult[AST] = {
-    var ctx = Ctx.fromAST(ast)
-
-    val diagnostics: List[Diagnostic] =
-      ast.foldLeft(Nil)((diags, decl) => diags :++ check(decl._2, ctx))
-    SemaResult(ast, diagnostics)
+    var ctx = ConstVars.fromAST(ast)
+    SemaResult(ast, ast.foldLeft(Nil)((diags, decl) => diags :++ check(decl._2, ctx)))
   }
 }
 
@@ -787,6 +791,6 @@ class DefaultSema extends Sema:
       >> IntLitTypeDeductionPass
       >> TypeDeductionPass
       >> TypeCheckPass
-    // >> AssignmentCorrectnessCheckPass
+      >> AssignmentCorrectnessCheckPass
 
   def run(decls: List[Decl]): SemaResult[AST] = passes.run(decls)

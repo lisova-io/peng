@@ -4,4 +4,4 @@ target/
 .bsp/
 out/
 project/
-resources/*
+graphs/

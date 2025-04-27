@@ -10,17 +10,18 @@ class GraphVizNode(val node: String):
     next +:= node
   override def toString(): String =
     val printNode = if node(0) == '%' then node.drop(1) else node
-    next.foldLeft("")((acc: String, nextNode: GraphVizNode) =>
+    if next.isEmpty then printNode + System.lineSeparator() + "    "
+    else next.foldLeft("")((acc: String, nextNode: GraphVizNode) =>
       val printNextNode = if nextNode.node(0) == '%' then nextNode.node.drop(1) else nextNode
       acc + "\"" + printNode + "\"" + " -> " + "\"" + printNextNode + "\"" + System
         .lineSeparator() + "    "
     )
 
 class GraphViz:
-  var name: String                      = String()
+  var name: String                      = ""
   var nodes: List[GraphVizNode]         = List()
   def setName(name: String): Unit       = this.name = name
-  def addNode(node: GraphVizNode): Unit = nodes +:= node
+  def addNode(node: GraphVizNode): Unit = nodes :+= node
   override def toString(): String =
     val sep = System.lineSeparator() + "    "
     s"digraph $name {" + sep +
@@ -28,9 +29,9 @@ class GraphViz:
       + System.lineSeparator() + "}"
 
 object GraphViz:
-  def programToGV(program: Program): GraphViz =
+  def programToGV(sourceName: String, program: Program): GraphViz =
     val gv = GraphViz()
-    gv.name = "program"
+    gv.name = sourceName.replace('/', '_').replace('.', '_').replace('-', '_')
     program.fns.foreach((_, fn) => fnToGV(fn, gv))
     gv
   private def fnToGV(fn: Function, gv: GraphViz): GraphViz =
