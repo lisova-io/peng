@@ -278,10 +278,13 @@ private object TypePropagationPass extends Pass[AST, AST] {
 
   private def propagateType(e: Expr, tp: Type, ctx: Ctx): Expr =
     propagateTypes(e, ctx) match
-      case b @ BinExpr(op, lhs, rhs, _) =>
-        if !op.value.isCmp then
-          BinExpr(op, propagateType(lhs, tp, ctx), propagateType(rhs, tp, ctx), tp)
-        else b
+      case BinExpr(op, lhs, rhs, t) =>
+        BinExpr(
+          op,
+          propagateType(lhs, tp, ctx),
+          propagateType(rhs, tp, ctx),
+          if !op.value.isCmp then t else Type.Bool,
+        )
       case vre @ VarRefExpr(name, tp) => vre
       case CallExpr(name, args) => {
         ctx.getFn(name.value) match
@@ -542,10 +545,10 @@ private object ArgsAmountCheckPass extends Pass[AST, AST] {
   private def check(e: Expr, ast: AST): List[Diagnostic] =
     e match
       case BinExpr(_, lhs, rhs, _) => check(lhs, ast) :++ check(rhs, ast)
-      case VarRefExpr(_, _)     => Nil
-      case UnaryExpr(_, e)      => check(e, ast)
-      case NumLitExpr(_, _)     => Nil
-      case BoolLitExpr(_)       => Nil
+      case VarRefExpr(_, _)        => Nil
+      case UnaryExpr(_, e)         => check(e, ast)
+      case NumLitExpr(_, _)        => Nil
+      case BoolLitExpr(_)          => Nil
       case CallExpr(WithSpan(name, span), args) =>
         val fn: FnDecl = ast.get(name) match
           case Some(f: FnDecl) => f
@@ -635,18 +638,20 @@ private object TypeCheckPass extends Pass[AST, AST] {
         case DeclStmt(d) =>
           (ctx + (d.name.value -> (d.tp.value -> Some(d))), diags :++ typeCheck(d, ctx))
         case RetStmt(e) =>
-          val (t, d) = typeCheck(e, Some(tp.value), ctx)
-          // val d2 = if !d.isEmpty then {
-          //   val last = d.last
-          //   d.init :+ Diagnostic(
-          //     last.severity,
-          //     last.messages :+ Message(
-          //       tp.span,
-          //       "function return type defined here",
-          //     ),
-          //   )
-          // } else d
-          ctx -> diags
+          val (t, d1) = typeCheck(e, Some(tp.value), ctx)
+          val d2 =
+            if checkTypes(t, tp.value)
+            then Nil
+            else
+              Diagnostic.error(
+                Message(
+                  e.getSpan,
+                  s"function return type mismatch: expected ${tp.value}, but got ${t}",
+                ) ::
+                  Message(tp.span, "function return type defined here") ::
+                  Nil
+              ) :: Nil
+          ctx -> (diags :++ d1 :++ d2)
         case UnitRetStmt(s) =>
           val d =
             if tp.value == Type.Unit
@@ -665,7 +670,7 @@ private object TypeCheckPass extends Pass[AST, AST] {
 
   private def typeCheck(e: Expr, tp: Option[Type], ctx: Ctx): (Type, List[Diagnostic]) =
     e match
-      case BinExpr(op, lhs, rhs, t) =>
+      case BinExpr(op, lhs, rhs, bt) =>
         val expectedType = if op.value.isCmp then None else tp
         val (t1, d1)     = typeCheck(lhs, expectedType, ctx)
         val (t2, d2)     = typeCheck(rhs, expectedType, ctx)
@@ -689,6 +694,7 @@ private object TypeCheckPass extends Pass[AST, AST] {
         val opTp =
           if op.value.isCmp then (if opCheckDiags.isEmpty then Type.Bool else Type.Invalid)
           else t
+        assert(opTp == bt)
         (opTp, d :++ opCheckDiags)
       case VarRefExpr(name, vtp) =>
         if tp.isEmpty || checkTypes(tp.get, vtp)
@@ -768,11 +774,11 @@ private object AssignmentCorrectnessCheckPass extends Pass[AST, AST] {
           case v: VarRefExpr => Nil
           case _ => Diagnostic.error(e.getSpan, s"cannot assign to this expression") :: Nil
       case BinExpr(_, lhs, rhs, _) => check(lhs, ctx) :++ check(rhs, ctx)
-      case VarRefExpr(_, _)     => Nil
-      case UnaryExpr(_, e)      => check(e, ctx)
-      case NumLitExpr(_, _)     => Nil
-      case BoolLitExpr(_)       => Nil
-      case CallExpr(_, args)    => args.map(check(_, ctx)).fold(Nil)(_ :++ _)
+      case VarRefExpr(_, _)        => Nil
+      case UnaryExpr(_, e)         => check(e, ctx)
+      case NumLitExpr(_, _)        => Nil
+      case BoolLitExpr(_)          => Nil
+      case CallExpr(_, args)       => args.map(check(_, ctx)).fold(Nil)(_ :++ _)
 
   private def check(s: Stmt, ctx: ConstVars): List[Diagnostic] =
     s match
