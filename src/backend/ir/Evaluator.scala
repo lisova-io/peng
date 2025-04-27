@@ -33,10 +33,8 @@ class Eval(p: Program):
       case false => vregs.addOne((v, ev))
 
   def eval: EvalValue =
-    println(p)
     p.fns.foreach((_, fn) =>
       fn.ssa
-      println(p)
       fn.destroySSA
     )
     val mainFn = p.fns.get("main").get
@@ -132,7 +130,6 @@ class Eval(p: Program):
         case _      => ???
       newHm.addOne((vparam, getValue(arg)))
     val oldOne = vregs
-    print(vregs)
     vregs = newHm
     val ret = eval(p.fns(call.fn.name))
     vregs = oldOne
