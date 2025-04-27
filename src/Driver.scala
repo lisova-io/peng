@@ -14,6 +14,7 @@ import scala.collection.mutable.HashMap
 import backend.ir.evaluator.Eval
 
 enum Command:
+  case Help
   case PrintAst(val src: List[String])
   case PrintIr(val src: List[String])
   case Run(val src: List[String])
@@ -81,7 +82,11 @@ def parseRun: Parser[Command] =
     src <- parseSource.many
   } yield Command.Run(src)
 
-def parseCmd: Parser[Command] = parsePrintAst <|> parsePrintIr <|> parseRun
+def parseCmd: Parser[Command] =
+  Parser.literal("help").replace(Command.Help) <|>
+    parsePrintAst <|>
+    parsePrintIr <|>
+    parseRun
 
 def parseOptions: Parser[Options] =
   for {
@@ -140,11 +145,21 @@ object Driver:
       ir = genIr(ast)
     } println(Eval(ir).eval)
 
+  private def printHelp =
+    println("""peng compiler
+
+available commands:
+  help             print this message
+  run <FILES...>   execute code from given source files
+  ast <FILES...>   print abstract syntax trees for given source files
+  ir <FILES...>    generate and print intermediate representation for given source files""")
+
   def run(args: Seq[String]): Unit =
     parseOptions.run(args) match
       case Left(err) => println(err)
       case Right((options, _)) =>
         options.cmd match
+          case Command.Help          => printHelp
           case Command.Run(src)      => src.foreach(f => mapFile(f, executeFile(f)))
           case Command.PrintAst(src) => src.foreach(f => mapFile(f, parseAndPrintAST(f)))
           case Command.PrintIr(src)  => src.foreach(f => mapFile(f, printIr(f)))
