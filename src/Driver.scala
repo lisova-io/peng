@@ -11,6 +11,7 @@ import backend.opt.passsetup.OptLevel
 import overseer.DebugOverseer
 import overseer.DefaultOverseer
 import scala.collection.mutable.HashMap
+import backend.ir.evaluator.Eval
 
 enum Command:
   case PrintAst(val src: List[String])
@@ -117,13 +118,7 @@ object Driver:
     if semaDiagnostics.containsErrors then return
     val translator = overseer.getTranslator(ast)
     val ir         = translator.gen
-    // TODO
-    // ir.foreach((_, actual) => println(actual))
-    // val passmanager = overseer.getPassManager(ir, optLevel)
-    // val newIR       = passmanager.addPass(TrivialDCE()).perform
-    // newIR.foreach((_, actual) => println(actual))
-    // val g = parseArgs(args)
-    // execute(g)
+    println(Eval(ir).eval)
 
   def run(args: Seq[String]): Unit =
     parseOptions.run(args) match

@@ -575,7 +575,7 @@ private object TypeCheckPass extends Pass[AST, AST] {
         typeCheck(
           body.block,
           rettype,
-          ctx ++ params.map(arg => arg._1.value -> (arg._2.value -> None)),
+          ctx ++ params.map(p => p._1.value -> (p._2.value -> None)),
         )
       case VarDecl(const, name, tp, value) => typeCheck(value, Some(tp.value), ctx)._2
 
@@ -653,15 +653,16 @@ private object TypeCheckPass extends Pass[AST, AST] {
           else t
         (opTp, d :++ opCheckDiags)
       case VarRefExpr(name) =>
-        val v: VarDecl = ctx.get(name.value).get._2.get match
-          case v: VarDecl => v
-          case _          => ??? // this should not be reachable
-        if tp.isEmpty || checkTypes(tp.get, v.tp.value)
-        then (v.tp.value, Nil)
+        val vtp = ctx.get(name.value).get._1
+        //  match
+        // case Some(v: VarDecl) => v.tp.value
+        // case _          => ??? // this should not be reachable
+        if tp.isEmpty || checkTypes(tp.get, vtp)
+        then (vtp, Nil)
         else
           Type.Invalid -> (Diagnostic.error(
             name.span,
-            s"expected ${tp.get}, got ${v.tp.value}",
+            s"expected ${tp.get}, got ${vtp}",
           ) :: Nil)
       case CallExpr(name, args) =>
         val fn: FnDecl = ctx.get(name.value).get._2.get match
