@@ -1,0 +1,13 @@
+fn fact(n: i32) i32 {
+	var res = 1;
+	var i = 1;
+	while i <= n {
+		res = res * i;
+		i = i + 1;
+	}
+	return res;
+}
+
+fn main() i32 {
+	return fact(5);	
+}

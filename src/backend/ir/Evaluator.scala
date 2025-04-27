@@ -33,10 +33,10 @@ class Eval(p: Program):
       case false => vregs.addOne((v, ev))
 
   def eval: EvalValue =
-    p.fns.foreach((_, fn) =>
-      fn.ssa
-      fn.destroySSA
-    )
+    // p.fns.foreach((_, fn) =>
+    //   fn.ssa
+    //   fn.destroySSA
+    // )
     val mainFn = p.fns.get("main").get
     eval(mainFn)
   private def eval(fn: Function): EvalValue =
@@ -45,7 +45,7 @@ class Eval(p: Program):
     val entry = blockMap(fn.name)
     val ret   = eval(entry)
     blockMap = oldOne
-    println(s"fn ${fn.name} returned $ret")
+    // println(s"fn ${fn.name} returned $ret")
     ret
 
   private def eval(instr: Instr): EvalValue =
