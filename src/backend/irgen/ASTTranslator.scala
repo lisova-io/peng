@@ -13,7 +13,7 @@ import scala.collection.mutable
 
 // TODO: Generic wrap for logging
 
-type ASTType  = WithSpan[Type]
+// type ASTType  = WithSpan[Type]
 type ASTFnArg = (WithSpan[String], WithSpan[Type])
 
 sealed trait ASTTranslator:
@@ -126,7 +126,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
    * Side effect is that it adds instruction to the current block in the builder.
    * Returns name of the virtual register that is result of this expression.
    */
-  protected def genNodeBin(op: BinOp, lhs: Expr, rhs: Expr): Value =
+  protected def genNodeBin(op: BinOp, lhs: Expr, rhs: Expr, tp: VType): Value =
     val left  = genNode(lhs)
     val right = genNode(rhs)
     val dest = op match
@@ -136,7 +136,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
             fnBuilder.addVar(v, blockBuilder.name)
             v
           case _ => ???
-      case _ => ctx.genVirtualReg(VType.I32, fnBuilder, blockBuilder.name)
+      case _ => ctx.genVirtualReg(tp, fnBuilder, blockBuilder.name)
     op match
       case BinOp.Plus =>
         blockBuilder.addInstr(Add(dest, left, right))
@@ -154,21 +154,19 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
    * Internal function that transforms type from representation it is
    * in AST to the type that is used in IR
    */
-  protected def astTypeToIR(tp: ASTType): VType =
-    def getType(t: Type): VType =
-      t match
-        case Type.I8                   => ???
-        case Type.U8                   => ???
-        case Type.I16                  => ???
-        case Type.U16                  => ???
-        case Type.I32                  => VType.I32
-        case Type.U32                  => ???
-        case Type.I64                  => ???
-        case Type.U64                  => ???
-        case Type.Bool                 => VType.Bool
-        case Type.Unit                 => VType.Unit
-        case Type.Undef | Type.Invalid => ??? // something went terribly wrong
-    getType(tp.value)
+  protected def astTypeToIR(tp: Type): VType =
+    tp match
+      case Type.I8                   => ???
+      case Type.U8                   => ???
+      case Type.I16                  => ???
+      case Type.U16                  => ???
+      case Type.I32                  => VType.I32
+      case Type.U32                  => ???
+      case Type.I64                  => ???
+      case Type.U64                  => ???
+      case Type.Bool                 => VType.Bool
+      case Type.Unit                 => VType.Unit
+      case Type.Undef | Type.Invalid => ??? // something went terribly wrong
 
   /*
    * Generate intermediate representation for function call expression.
@@ -180,7 +178,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
     val irArgs = args.map(genNode(_))
     ast(name) match
       case FnDecl(name, params, rtype, body) =>
-        val fntype = astTypeToIR(rtype)
+        val fntype = astTypeToIR(rtype.value)
         val dest   = ctx.genVirtualReg(fntype, fnBuilder, blockBuilder.name)
         val label  = Label(name.value)
         val instr  = Call(dest, label, irArgs)
@@ -196,7 +194,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
   protected def genNodeVDecl(
       const: Boolean,
       name: String,
-      tp: ASTType,
+      tp: Type,
       value: Expr,
   ): Value =
     val vtype = astTypeToIR(tp)
@@ -250,8 +248,8 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
     block.foreach(genNode(_))
     Void()
 
-  protected def genVarRef(name: String): Value =
-    createVar(name, VType.I32)
+  protected def genVarRef(name: String, tp: Type): Value =
+    createVar(name, astTypeToIR(tp))
 
   protected def fullReset: Unit =
     fnBuilder.reset
@@ -306,7 +304,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
   private def genFunction(
       name: String,
       params: List[ASTFnArg],
-      rtype: ASTType,
+      rtype: Type,
       body: Block,
   ) =
     // fullReset
@@ -316,7 +314,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
     val vtype = astTypeToIR(rtype)
     val paramsNoSpan = params.foreach((astArg, astType) => {
       val arg   = astArg.value
-      val vtype = astTypeToIR(astType)
+      val vtype = astTypeToIR(astType.value)
       fnBuilder.addArg(definedVar(arg, vtype))
     })
     val irBody = genBlock(body)
@@ -324,24 +322,24 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
 
   def genDecl(decl: Decl): Value =
     decl match
-      case VarDecl(const, name, tp, value) => genNodeVDecl(const, name.value, tp, value)
+      case VarDecl(const, name, tp, value) => genNodeVDecl(const, name.value, tp.value, value)
       case FnDecl(name, params, rettype, body) =>
-        genFunction(name.value, params, rettype, body.block)
+        genFunction(name.value, params, rettype.value, body.block)
 
   def genNode(node: AstNode): Value =
     node match
       case NumLitExpr(tp, value)           => ImmInt(value.value)
-      case BinExpr(op, lhs, rhs)           => genNodeBin(op.value, lhs, rhs)
+      case BinExpr(op, lhs, rhs, tp)       => genNodeBin(op.value, lhs, rhs, astTypeToIR(tp))
       case CallExpr(name, args)            => genNodeCall(name.value, args)
-      case VarDecl(const, name, tp, value) => genNodeVDecl(const, name.value, tp, value)
+      case VarDecl(const, name, tp, value) => genNodeVDecl(const, name.value, tp.value, value)
       case RetStmt(expr)                   => genNodeRet(expr)
       case UnitRetStmt(_)                  => genNodeRet()
       case BlockStmt(block)                => genBlock(block)
-      case VarRefExpr(name)                => genVarRef(name.value)
+      case VarRefExpr(name, tp)            => genVarRef(name.value, tp)
       case DeclStmt(decl)                  => genDecl(decl)
       case ExprStmt(expr)                  => genNode(expr)
       case FnDecl(name, params, rettype, body) =>
-        genFunction(name.value, params, rettype, body.block)
+        genFunction(name.value, params, rettype.value, body.block)
       case WhileStmt(cond, body)         => genWhile(cond, body)
       case IfStmt(cond, onTrue, onFalse) => genIf(cond, onTrue, onFalse)
       case _ =>
@@ -365,14 +363,14 @@ final class LoggingTranslator(ast: AST, ctx: TranslatorCtx = LoggingCtx())
     if argString.length != 0 then logger.debug(s"call to $name, args: $argString")
     else logger.debug(s"call to $name")
     res
-  override protected def astTypeToIR(tp: ASTType): VType =
+  override protected def astTypeToIR(tp: Type): VType =
     logCall("astTypeToIR", super.astTypeToIR(tp), tp)
 
   override protected def blockEnd: BasicBlock =
     logCall("blockEnd", super.blockEnd)
 
-  override protected def genNodeBin(op: BinOp, lhs: Expr, rhs: Expr): Value =
-    logCall("genNodeBin", super.genNodeBin(op, lhs, rhs), op, lhs, rhs)
+  override protected def genNodeBin(op: BinOp, lhs: Expr, rhs: Expr, tp: VType): Value =
+    logCall("genNodeBin", super.genNodeBin(op, lhs, rhs, tp), op, lhs, rhs, tp)
 
   override protected def fnEnd: Value =
     logCall("fnEnd", super.fnEnd)
@@ -380,8 +378,8 @@ final class LoggingTranslator(ast: AST, ctx: TranslatorCtx = LoggingCtx())
   override protected def genBlock(block: Block): Value =
     logCall("genBlock", super.genBlock(block), block)
 
-  override protected def genVarRef(name: String): Value =
-    logCall("genVarRef", super.genVarRef(name), name)
+  override protected def genVarRef(name: String, tp: Type): Value =
+    logCall("genVarRef", super.genVarRef(name, tp), name, tp)
 
   override protected def genNodeCall(name: String, args: List[Expr]): Value =
     logCall("genNodeCall", super.genNodeCall(name, args), name, args.mkString(", "))
@@ -404,7 +402,7 @@ final class LoggingTranslator(ast: AST, ctx: TranslatorCtx = LoggingCtx())
   override protected def genNodeVDecl(
       const: Boolean,
       name: String,
-      tp: ASTType,
+      tp: Type,
       value: Expr,
   ): Value =
     logCall("genNodeVDecl", super.genNodeVDecl(const, name, tp, value), const, name, tp, value)

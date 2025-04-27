@@ -1,6 +1,10 @@
-val foo = 3 * bar;
-val bar = 42 + foo;
+val foo = baz(bar > 50);
+val bar = 17 + foo;
 
-fn main() i32 {
-	return foo;
+fn baz(cond: bool) i32 {
+	if cond {
+		return 42;
+	} else {
+		return 37;
+	}
 }

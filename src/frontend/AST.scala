@@ -142,15 +142,16 @@ enum BinOp extends Ordered[BinOp] {
     case _                           => false
 }
 
-sealed case class VarRefExpr(val name: WithSpan[Name]) extends Expr:
-  override def toString: String = s"${name.value}"
+sealed case class VarRefExpr(val name: WithSpan[Name], val tp: Type) extends Expr:
+  override def toString: String = s"${name.value} $tp"
   override def getSpan: Span    = name.span
 
 sealed case class CallExpr(val name: WithSpan[Name], val args: List[Expr]) extends Expr:
   override def toString: String = s"(${name.value} (${args.mkString(", ")}))"
   override def getSpan: Span    = name.span
 
-sealed case class BinExpr(val op: WithSpan[BinOp], val lhs: Expr, val rhs: Expr) extends Expr:
+sealed case class BinExpr(val op: WithSpan[BinOp], val lhs: Expr, val rhs: Expr, val tp: Type)
+    extends Expr:
   override def toString: String = s"($lhs ${op.value} $rhs)"
   override def getSpan: Span    = op.span
 
@@ -171,12 +172,12 @@ private def makeOffset(depth: Int) = print("  " * depth)
 def printExpr(expr: Expr, depth: Int): Unit =
   makeOffset(depth)
   expr match
-    case BinExpr(WithSpan(op, _), lhs, rhs) =>
-      println(s"BinExpr $op")
+    case BinExpr(WithSpan(op, _), lhs, rhs, tp) =>
+      println(s"BinExpr $op $tp")
       printExpr(lhs, depth + 1)
       printExpr(rhs, depth + 1)
-    case VarRefExpr(WithSpan(name, _)) =>
-      println(s"VarRefExpr $name")
+    case VarRefExpr(WithSpan(name, _), tp) =>
+      println(s"VarRefExpr $name $tp")
     case CallExpr(WithSpan(name, _), args) =>
       println(s"CallExpr $name")
       args.foreach(e => printExpr(e, depth + 1))

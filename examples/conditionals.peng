@@ -1,7 +1,7 @@
-val i = 42;
-
 fn main() i32 {
+	val i = 42;
 	val cond = i >= 42;
+
 	if cond {
 		return 1;
 	} else {

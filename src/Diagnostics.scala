@@ -2,7 +2,7 @@ package diagnostics
 
 import frontend.lex.{Lexer, Offset, Span, Token, WithSpan}
 
-private object Color:
+object Color:
   private def ansi(code: Any): String = 0x1b.toChar + s"[${code}m"
   val Reset                           = ansi(0)
   val Bold                            = ansi(1)

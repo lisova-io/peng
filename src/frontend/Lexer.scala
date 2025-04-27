@@ -35,6 +35,11 @@ class DefaultLexer(val input: String) extends Lexer:
   private def peekChar: Option[Char] = if offset < input.length then Some(input(offset)) else None
   private def nextChar: Option[Char] = peekChar.map(c => { offset += 1; c })
 
+  private def peekChars(n: Int): Option[String] =
+    if offset + n <= input.length
+    then Some(input.slice(offset, offset + n))
+    else None
+
   private def skipWhile(pred: Char => Boolean): Unit =
     while peekChar.filter(pred).isDefined do nextChar
 
@@ -53,8 +58,16 @@ class DefaultLexer(val input: String) extends Lexer:
     res
   }
 
+  private def skipWhitespaceAndComments = 
+    var running = true
+    while running do
+      skipWhile(_.isWhitespace)
+      running = peekChars(2) match
+        case Some("//") => skipWhile(_ != '\n'); true
+        case _          => false
+
   def next: Option[WithSpan[Token]] = {
-    skipWhile(_.isWhitespace)
+    skipWhitespaceAndComments
     val b = offset
     nextChar
       .map(c => {

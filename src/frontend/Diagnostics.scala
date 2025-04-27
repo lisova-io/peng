@@ -2,9 +2,11 @@ package frontend.diagnostics
 
 import frontend.lex.Span
 import frontend.lex.given
+
 import diagnostics.Diagnostic as BaseDiagnostic
 import diagnostics.Diagnostics as BaseDiagnostics
 import diagnostics.Severity
+import diagnostics.Color
 import diagnostics.given
 
 class Message(val span: Span, val msg: String)
@@ -33,7 +35,7 @@ class Diagnostics(val input: String) extends BaseDiagnostics[Diagnostic]:
       firstDiagnostic = false
       print(s"${d.severity}: ")
       for Message(span, msg) <- d.messages do
-        println(msg)
+        println(Color.Bold + msg + Color.Reset)
         val linesToPrint = lines.filter((l, _) => l._1 <= span.e && l._2 >= span.b)
         for line <- linesToPrint do
           val ((b, e), i)   = line

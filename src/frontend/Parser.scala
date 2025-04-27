@@ -139,7 +139,7 @@ class DefaultParser(lexer: Lexer) extends Parser:
     } yield {
       args match
         case Some(args) => CallExpr(name, args)
-        case None       => VarRefExpr(name)
+        case None       => VarRefExpr(name, Type.Undef)
     }
   }
 
@@ -228,7 +228,7 @@ class DefaultParser(lexer: Lexer) extends Parser:
             if curPrec < getCurPrecedence
             then parseBinaryExpr(curPrec + 1, rhs)
             else Right(rhs)
-        } yield BinExpr(binOp, lhs, rhs)
+        } yield BinExpr(binOp, lhs, rhs, Type.Undef)
 
         res match
           case Left(err) => break(Left(err))
@@ -481,17 +481,21 @@ class DefaultParser(lexer: Lexer) extends Parser:
     var res: List[Decl]               = Nil
     var diagnostics: List[Diagnostic] = Nil
 
-    while lexer.peek.isDefined do {
-      val declRes = lexer.peek.get match
-        case WithSpan(Token.Fn, _) => parseFnDecl
+    while lexer.peek.isDefined do
+      val declRes: Option[ParseResult[Decl]] = lexer.peek.get match
+        case WithSpan(Token.Fn, _) => Some(parseFnDecl)
         case WithSpan(Token.Val | Token.Var, _) =>
-          parseVarDecl.flatMap(d => token(matchToken(Token.Semicolon), Token.Semicolon).map(_ => d))
-        case WithSpan(t, s) => lexer.next; Left(List(expected(s, "declaration")))
-
+          Some(
+            parseVarDecl.flatMap(d =>
+              token(matchToken(Token.Semicolon), Token.Semicolon).map(_ => d)
+            )
+          )
+        case WithSpan(Token.Semicolon, _) => lexer.next; None
+        case WithSpan(t, s) => lexer.next; Some(Left(List(expected(s, "declaration"))))
       declRes match
-        case Left(diags) => diagnostics ++= diags
-        case Right(decl) => res :+= decl
-    }
+        case None              => ()
+        case Some(Left(diags)) => diagnostics ++= diags
+        case Some(Right(decl)) => res :+= decl
 
     (res, diagnostics)
   }
