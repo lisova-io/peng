@@ -3,5 +3,6 @@ fn foo(a: i32, b: i32) i32 {
 }
 
 fn main() i32 {
+	val c = true;
 	return foo(1) + foo(1, 2, 3);
 }
