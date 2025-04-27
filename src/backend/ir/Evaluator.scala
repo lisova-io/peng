@@ -133,6 +133,7 @@ class Eval(p: Program):
     vregs = newHm
     val ret = eval(p.fns(call.fn.name))
     vregs = oldOne
+    putValue(call.dest, ret)
     ret
 
   private def eval(br: Br): EvalValue =

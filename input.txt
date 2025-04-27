@@ -1,7 +1,7 @@
 fn foo(a: i32) i32 {
-	return a * 4;
+  return a * 4;
 }
 
 fn main() i32 {
-	return foo(37);
+  return foo(32);
 }
