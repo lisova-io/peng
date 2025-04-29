@@ -8,10 +8,8 @@ import scala.collection.mutable.{HashMap, HashSet}
 import scala.collection.MapView
 
 import diagnostics.containsErrors
-import scala.util.hashing.Hashing
-import java.text.Normalizer.Form
 
-class SemaResult[+T](val value: T, val diagnostics: List[Diagnostic]) {
+class SemaResult[+T](val value: T, val diagnostics: List[Diagnostic]):
   def this(v: T) = this(v, Nil)
   def map[U](fn: T => U): SemaResult[U] = SemaResult(fn(value), diagnostics)
   def flatMap[U](fn: T => SemaResult[U]): SemaResult[U] = {
@@ -26,7 +24,6 @@ class SemaResult[+T](val value: T, val diagnostics: List[Diagnostic]) {
     val SemaResult(v, d) = that
     SemaResult(v, diagnostics :++ d)
   }
-}
 
 object SemaResult:
   def unapply[T](r: SemaResult[T]): (T, List[Diagnostic]) = (r.value, r.diagnostics)
@@ -36,13 +33,12 @@ private trait Pass[T, U]:
   final infix def compose[V](next: Pass[U, V]): Pass[T, V] = PassComposition(this, next)
   final infix def `>>`[V](next: Pass[U, V]): Pass[T, V]    = PassComposition(this, next)
 
-private class PassComposition[T, U, V](first: Pass[T, U], second: Pass[U, V]) extends Pass[T, V] {
+private class PassComposition[T, U, V](first: Pass[T, U], second: Pass[U, V]) extends Pass[T, V]:
   override def run(arg: T): SemaResult[V] = {
     val SemaResult(r1, d1) = first.run(arg)
     val SemaResult(r2, d2) = second.run(r1)
     SemaResult(r2, d1 :++ d2)
   }
-}
 
 private object NameCorrectnessCheckPass extends Pass[List[Decl], AST] {
   private def check(n: AstNode, names: HashSet[Name]): SemaResult[HashSet[Name]] =
@@ -132,6 +128,22 @@ private object NameCorrectnessCheckPass extends Pass[List[Decl], AST] {
     SemaResult(ast, diagnostics)
   }
 }
+
+private object GlobalVariableTypeSpecifierCheck extends Pass[AST, AST]:
+  override def run(ast: AST): SemaResult[AST] =
+    var diags: List[Diagnostic] = Nil
+    val newAst = ast.mapValuesInPlace((n, d) => {
+      d match
+        case VarDecl(const, name, WithSpan(Type.Undef, span), value) =>
+          diags :+= Diagnostic.error(
+            span,
+            "explicit type specifier is required for all global variables",
+          )
+          VarDecl(const, name, WithSpan(Type.Invalid, span), value)
+        case x => x
+    })
+    SemaResult(newAst, diags)
+
 
 private object InitializerLoopCheckPass extends Pass[AST, AST] {
   private class Ctx(val globals: AST, val visited: HashSet[Name]):
@@ -285,7 +297,7 @@ private object TypePropagationPass extends Pass[AST, AST] {
           propagateType(rhs, tp, ctx),
           if !op.value.isCmp then t else Type.Bool,
         )
-      case vre @ VarRefExpr(name, tp) => vre
+      case vre: VarRefExpr => vre
       case CallExpr(name, args) => {
         ctx.getFn(name.value) match
           case Some(FnDecl(_, params, rettype, body)) =>
@@ -302,19 +314,17 @@ private object TypePropagationPass extends Pass[AST, AST] {
       case n @ NumLitExpr(_, value) => if tp.isIntegerType then NumLitExpr(tp, value) else n
       case BoolLitExpr(b)           => BoolLitExpr(b)
 
-  private def propagateTypes(fn: FnDecl, ctx: Ctx): FnDecl = {
+  private def propagateTypes(fn: FnDecl, ctx: Ctx): FnDecl = 
     val FnDecl(n, p, r, body) = fn
     val newCtx                = ctx.addVars(p.map(param => param._1.value -> param._2.value))
     FnDecl(n, p, r, BlockStmt(propagateType(body.block, r.value, newCtx)))
-  }
 
-  private def propagateTypes(vard: VarDecl, ctx: Ctx): VarDecl = {
+  private def propagateTypes(vard: VarDecl, ctx: Ctx): VarDecl = 
     val VarDecl(c, n, t, value) = vard
     t match
       case ws @ WithSpan(Type.Undef, s) => VarDecl(c, n, ws, propagateTypes(value, ctx))
       case ws @ WithSpan(t, s) =>
         VarDecl(c, n, ws, propagateType(value, t, ctx))
-  }
 
   override def run(ast: AST): SemaResult[AST] = {
     val ctx = Ctx(
@@ -458,7 +468,7 @@ private object TypeDeductionPass extends Pass[AST, AST] {
     tp.value match
       case Type.Undef =>
         deduceTypes(value, ctx).map(res => VarDecl(c, n, WithSpan(res._2, res._1.getSpan), res._1))
-      case _ => SemaResult(d)
+      case _ => deduceTypes(value, ctx).map(r => VarDecl(c, n, tp, r._1))
 
   private def deduceTypes(d: Decl, ctx: Ctx): SemaResult[Decl] =
     d match
@@ -511,10 +521,15 @@ private object TypeDeductionPass extends Pass[AST, AST] {
     e match
       case BinExpr(op, lhs, rhs, tp) =>
         for {
-          l <- deduceTypes(lhs, ctx)
-          r <- deduceTypes(rhs, ctx)
-          t = if op.value.isCmp then Type.Bool else coerceTypes(tp, coerceTypes(l._2, r._2))
-        } yield (BinExpr(op, l._1, r._1, t), t)
+          (le, lt) <- deduceTypes(lhs, ctx)
+          (re, rt) <- deduceTypes(rhs, ctx)
+          t =
+            if op.value.isCmp then Type.Bool
+            else coerceTypes(tp, coerceTypes(lt, rt))
+        } yield (BinExpr(op, le, re, t), t)
+      case VarRefExpr(name, Type.Undef) =>
+        val vtp = ctx.get(name.value).get
+        SemaResult((VarRefExpr(name, vtp), vtp))
       case vre @ VarRefExpr(name, vtp) => SemaResult((vre, vtp))
       case CallExpr(name, args) =>
         var diagnostics: List[Diagnostic] = Nil
@@ -524,9 +539,9 @@ private object TypeDeductionPass extends Pass[AST, AST] {
           e2._1
         )
         SemaResult((CallExpr(name, newArgs), ctx.getOrElse(name.value, Type.Invalid)), diagnostics)
-      case UnaryExpr(op, e) => deduceTypes(e, ctx).map(res => (UnaryExpr(op, res._1), res._2))
-      case n @ NumLitExpr(tp, ws @ WithSpan(value, span)) => SemaResult((n, tp))
-      case b: BoolLitExpr                                 => SemaResult((b, Type.Bool))
+      case UnaryExpr(op, e)      => deduceTypes(e, ctx).map(res => (UnaryExpr(op, res._1), res._2))
+      case n @ NumLitExpr(tp, _) => SemaResult((n, tp))
+      case b: BoolLitExpr        => SemaResult((b, Type.Bool))
 
   override def run(ast: AST): SemaResult[AST] =
     var diagnostics: List[Diagnostic] = Nil
@@ -611,7 +626,16 @@ private object TypeCheckPass extends Pass[AST, AST] {
           rettype,
           ctx ++ params.map(p => p._1.value -> (p._2.value -> None)),
         )
-      case VarDecl(const, name, tp, value) => typeCheck(value, Some(tp.value), ctx)._2
+      case VarDecl(const, name, tp, value) =>
+        val (valtp, diags) = typeCheck(value, None, ctx)
+        if checkTypes(valtp, tp.value) then diags
+        else
+          diags :+ Diagnostic.error(
+            Message(
+              value.getSpan,
+              s"variable initializer type mismatch: expected ${tp.value}, but got $valtp",
+            ) :: Message(tp.span, "vatiable type defined here") :: Nil
+          )
 
   private def typeCheck(ifs: IfStmt, tp: WithSpan[Type], ctx: Ctx): List[Diagnostic] =
     val IfStmt(cond, tBr, fBr) = ifs
@@ -671,10 +695,13 @@ private object TypeCheckPass extends Pass[AST, AST] {
   private def typeCheck(e: Expr, tp: Option[Type], ctx: Ctx): (Type, List[Diagnostic]) =
     e match
       case BinExpr(op, lhs, rhs, bt) =>
-        val expectedType = if op.value.isCmp then None else tp
-        val (t1, d1)     = typeCheck(lhs, expectedType, ctx)
-        val (t2, d2)     = typeCheck(rhs, expectedType, ctx)
-        var d            = d1 :++ d2
+        val expectedType =
+          if op.value.isCmp || tp.filter(_ == Type.Invalid).isDefined then None
+          else if bt != Type.Invalid then Some(bt)
+          else tp
+        val (t1, d1) = typeCheck(lhs, expectedType, ctx)
+        val (t2, d2) = typeCheck(rhs, expectedType, ctx)
+        var d        = d1 :++ d2
         val t = if !checkTypes(t1, t2) then {
           d :+= Diagnostic.error(
             op.span,
@@ -692,7 +719,8 @@ private object TypeCheckPass extends Pass[AST, AST] {
             ) :: Nil
           else Nil
         val opTp =
-          if op.value.isCmp then (if opCheckDiags.isEmpty then Type.Bool else Type.Invalid)
+          if op.value.isCmp && opCheckDiags.isEmpty then Type.Bool
+          else if op.value.isCmp then Type.Invalid
           else t
         assert(opTp == bt)
         (opTp, d :++ opCheckDiags)
@@ -817,17 +845,18 @@ trait Sema:
 
 class DefaultSema extends Sema:
   /* TODO:
-    - require type specifier for all global variables
+    -  integer range check
     - `is callable?` check
    */
   final private val passes: Pass[List[Decl], AST] =
     NameCorrectnessCheckPass
+      >> GlobalVariableTypeSpecifierCheck
       >> InitializerLoopCheckPass
+      >> AssignmentCorrectnessCheckPass
       >> ArgsAmountCheckPass
       >> IntLitTypeDeductionPass
-      >> TypeDeductionPass
       >> TypePropagationPass
+      >> TypeDeductionPass
       >> TypeCheckPass
-      >> AssignmentCorrectnessCheckPass
 
   def run(decls: List[Decl]): SemaResult[AST] = passes.run(decls)

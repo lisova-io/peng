@@ -9,6 +9,7 @@ object Color:
   val Red                             = ansi(31)
   val Yellow                          = ansi(33)
   val Green                           = ansi(32)
+  val Blue                            = ansi(34)
 
 enum Severity extends Ordered[Severity] {
   case Error
@@ -25,7 +26,7 @@ enum Severity extends Ordered[Severity] {
     this match
       case Error   => Color.Bold + Color.Red + "error" + Color.Reset
       case Warning => Color.Bold + Color.Yellow + "warning" + Color.Reset
-      case Note    => Color.Bold + Color.Green + "note" + Color.Reset
+      case Note    => Color.Bold + Color.Blue + "note" + Color.Reset
 
   override def compare(that: Severity): Int = this.toInt - that.toInt
 }

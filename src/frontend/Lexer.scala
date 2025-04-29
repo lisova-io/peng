@@ -58,7 +58,7 @@ class DefaultLexer(val input: String) extends Lexer:
     res
   }
 
-  private def skipWhitespaceAndComments = 
+  private def skipWhitespaceAndComments =
     var running = true
     while running do
       skipWhile(_.isWhitespace)
@@ -116,6 +116,7 @@ class DefaultLexer(val input: String) extends Lexer:
               case "if"     => Token.If            -> Span(b, b + 1)
               case "else"   => Token.Else          -> Span(b, b + 3)
               case "while"  => Token.While         -> Span(b, b + 4)
+              case "struct" => Token.Struct        -> Span(b, b + 5)
               case "true"   => Token.True          -> Span(b, b + 3)
               case "false"  => Token.False         -> Span(b, b + 4)
               case s        => Token.Identifier(s) -> Span(b, b + s.length - 1)

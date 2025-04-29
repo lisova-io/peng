@@ -18,6 +18,16 @@ few usecases we have for logging. Also configuration of it is sheise.
 ### Syntax of the language
 - Formal grammar or some sort of doc is greatly needed
 
+## Frontend
+
+### Struct parsing
+```
+  struct Foo {
+    a: i32,
+    b: bool,
+  }
+```
+
 ## Backend
 
 ### SSA gen

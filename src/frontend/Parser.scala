@@ -88,40 +88,55 @@ class DefaultParser(lexer: Lexer) extends Parser:
       case Left(err) => None
       case Right(t)  => lexer.next; Some(t)
 
+  private def enclosedInSepBy[T](
+      left: Token,
+      right: Token,
+      item: => ParseResult[T],
+  ): ParseResult[List[T]] =
+    for {
+      _ <- peekToken(t => if t == left then Some(()) else None, left)
+      _ = lexer.next
+      // TODO
+      _ <- peekToken(t => if t == right then Some(()) else None, right)
+      _ = lexer.next
+    } yield ???
+
   private def parseRefExpr: ParseResult[VarRefExpr | CallExpr] = {
-    def parseArgs: ParseResult[List[Expr]] = boundary {
+    def parseArgs: ParseResult[List[Expr]] = {
       peekToken(
-        {
-          _ match
-            case Token.RParen => Some(false)
-            case _            => Some(true)
-        },
+        _ match
+          case Token.RParen => Some(false)
+          case _            => Some(true),
         "argument",
         Token.RParen,
       ) match
-        case Left(err)                 => break(Left(err))
-        case Right(WithSpan(false, _)) => lexer.next; break(Right(Nil))
+        case Left(err)                 => return Left(err)
+        case Right(WithSpan(false, _)) => lexer.next; return Right(Nil)
         case Right(WithSpan(true, _))  => ()
 
       var args: List[Expr] = Nil
       while true do {
         parseExpr match
-          case Left(err)  => break(Left(err))
+          case Left(err)  => return Left(err)
           case Right(arg) => args :+= arg
-
         token(
-          { t =>
-            t match
-              case Token.Comma  => Some(true)
-              case Token.RParen => Some(false)
-              case _            => None
-          },
+          _ match
+            case Token.Comma  => Some(true)
+            case Token.RParen => Some(false)
+            case _            => None,
           Token.Comma,
           Token.RParen,
         ) match
-          case Left(err)                 => break(Left(err))
-          case Right(WithSpan(false, _)) => break(Right(args))
-          case Right(WithSpan(true, _))  => ()
+          case Left(err)                 => return Left(err)
+          case Right(WithSpan(false, _)) => return Right(args)
+          case Right(WithSpan(true, _)) =>
+            peekToken(_ match
+              case Token.RParen => Some(false)
+              case _            => Some(true)) match {
+              case Left(err)                 => return Left(err)
+              case Right(WithSpan(false, _)) => lexer.next; return Right(args)
+              case Right(WithSpan(true, _))  => ()
+            }
       }
       Right(args)
     }

@@ -311,7 +311,7 @@ sealed class DefaultTranslator(ast: AST, ctx: TranslatorCtx = DefaultCtx()) exte
     fnBuilder.reset
     fnBuilder.setName(Label(name)) // maybe have to do this label to. dk for now.
     blockBuilder.setName(Label(name))
-    val vtype = astTypeToIR(rtype)
+    fnBuilder.setType(astTypeToIR(rtype))
     val paramsNoSpan = params.foreach((astArg, astType) => {
       val arg   = astArg.value
       val vtype = astTypeToIR(astType.value)

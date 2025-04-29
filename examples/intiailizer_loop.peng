@@ -1,5 +1,5 @@
-val foo = baz(bar > 50);
-val bar = 17 + foo;
+val foo: i32 = baz(bar > 50);
+val bar: i32 = 17 + foo;
 
 fn baz(cond: bool) i32 {
 	if cond {

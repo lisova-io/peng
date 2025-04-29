@@ -24,7 +24,7 @@ object Diagnostic:
 // def warning(span: Span, msg: String) = Diagnostic(Severity.Warning, span, msg)
 // def note(span: Span, msg: String)    = Diagnostic(Severity.Note, span, msg)
 
-class Diagnostics(val input: String) extends BaseDiagnostics[Diagnostic]:
+class Diagnostics(val filename: String, val input: String) extends BaseDiagnostics[Diagnostic]:
   override def printDiagnostics(diagnostics: Seq[Diagnostic]): Unit = {
     if diagnostics.isEmpty then return
 
@@ -33,8 +33,14 @@ class Diagnostics(val input: String) extends BaseDiagnostics[Diagnostic]:
     for d <- diagnostics.sortBy(d => (d.firstMsg.span, d.severity)) do
       if !firstDiagnostic then println()
       firstDiagnostic = false
-      print(s"${d.severity}: ")
-      for Message(span, msg) <- d.messages do
+      val (lineNumber, colNumber) = {
+        val span             = d.messages.head.span
+        val ((b, e), number) = lines.find((l, _) => l._1 <= span.e && l._2 >= span.b).get
+        (number + 1) -> (span.b - b + 1)
+      }
+      for m @ Message(span, msg) <- d.messages do
+        if m == d.firstMsg then print(s"$filename:$lineNumber:$colNumber: ${d.severity}: ")
+        else print(s"$filename:$lineNumber:$colNumber: ${Severity.Note}: ")
         println(Color.Bold + msg + Color.Reset)
         val linesToPrint = lines.filter((l, _) => l._1 <= span.e && l._2 >= span.b)
         for line <- linesToPrint do

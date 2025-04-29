@@ -3,6 +3,6 @@ fn foo(a: i32, b: i32) i32 {
 }
 
 fn bar() bool {
-	// val c: i32 = true;
+	val c: i32 = true + false + 3;
 	return foo(1, 2) + foo(1, 2);
 }

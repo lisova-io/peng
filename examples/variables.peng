@@ -1,5 +1,5 @@
 fn main() i32 {
-	var i = 10;
+	var i = 10; // try changing this to `val i`
 	i = i + 5;
 	return i;
 }

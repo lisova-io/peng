@@ -116,41 +116,45 @@ object Driver:
       finally source.close()
     f(input)
 
-  private def parse(input: String): Option[List[frontend.ast.Decl]] =
+  private def parse(filename: String, input: String): Option[List[frontend.ast.Decl]] =
     val lexer                      = overseer.getLexer(input)
     val parser                     = overseer.getParser(lexer)
     val (decls, parserDiagnostics) = parser.parse
-    frontend.diagnostics.Diagnostics(input).printDiagnostics(parserDiagnostics)
+    frontend.diagnostics.Diagnostics(filename, input).printDiagnostics(parserDiagnostics)
     if parserDiagnostics.containsErrors then None else Some(decls)
 
-  private def runSema(input: String, decls: List[frontend.ast.Decl]): Option[frontend.ast.AST] =
+  private def runSema(
+      filename: String,
+      input: String,
+      decls: List[frontend.ast.Decl],
+  ): Option[frontend.ast.AST] =
     val SemaResult(ast, semaDiagnostics) = overseer.getSema.run(decls)
-    frontend.diagnostics.Diagnostics(input).printDiagnostics(semaDiagnostics)
+    frontend.diagnostics.Diagnostics(filename, input).printDiagnostics(semaDiagnostics)
     if semaDiagnostics.containsErrors then None else Some(ast)
 
   private def genIr(ast: frontend.ast.AST): backend.ir.control.Program =
     overseer.getTranslator(ast).gen
 
   private def parseAndPrintAST(filename: String)(input: String) =
-    println(s"$filename:")
     for {
-      decls <- parse(input)
-      ast   <- runSema(input, decls)
+      decls <- parse(filename, input)
+      ast   <- runSema(filename, input, decls)
     } printAST(ast)
 
   private def printIr(filename: String)(input: String) =
-    println(s"$filename:")
     for {
-      decls <- parse(input)
-      ast   <- runSema(input, decls)
+      decls <- parse(filename, input)
+      ast   <- runSema(filename, input, decls)
       ir = genIr(ast)
-    } println(ir)
+    } {
+      // ir.fns.foreach((_, fn) => fn.ssa)
+      println(ir)
+    }
 
   private def executeFile(filename: String)(input: String): Unit =
-    println(s"$filename:")
     for {
-      decls <- parse(input)
-      ast   <- runSema(input, decls)
+      decls <- parse(filename, input)
+      ast   <- runSema(filename, input, decls)
       ir = genIr(ast)
     } println(Eval(ir).eval)
 
@@ -161,8 +165,8 @@ object Driver:
 
   private def graph(filename: String)(input: String): Unit =
     for {
-      decls <- parse(input)
-      ast   <- runSema(input, decls)
+      decls <- parse(filename, input)
+      ast   <- runSema(filename, input, decls)
       ir = genIr(ast)
     } {
       val gv      = backend.graphviz.GraphViz.programToGV(filename, ir)

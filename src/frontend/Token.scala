@@ -8,6 +8,7 @@ enum Token:
   case If
   case Else
   case While
+  case Struct
 
   case True
   case False
@@ -49,6 +50,7 @@ enum Token:
       case If                               => "`if`"
       case Else                             => "`else`"
       case While                            => "`while`"
+      case Struct                           => "`struct`"
       case True                             => "`true`"
       case False                            => "`false`"
       case frontend.lex.Token.Identifier(_) => "identifier"
