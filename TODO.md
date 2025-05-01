@@ -20,6 +20,8 @@ few usecases we have for logging. Also configuration of it is sheise.
 
 ## Frontend
 
+### Fix `expected` in combinators, it does not work as intented
+
 ### Struct parsing
 ```
   struct Foo {

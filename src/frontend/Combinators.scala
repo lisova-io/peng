@@ -7,6 +7,8 @@ import frontend.lex.WithSpan
 import frontend.diagnostics.Diagnostic
 import frontend.diagnostics.Message
 
+// TODO: FIX EXPECTED
+
 private def makeExpectedDiag[A](span: Span, expected: Any*): Diagnostic = {
   def formatExpected(l: Seq[Any]): String =
     l match
