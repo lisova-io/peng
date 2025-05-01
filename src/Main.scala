@@ -117,11 +117,12 @@ object Driver:
     f(input)
 
   private def parse(filename: String, input: String): Option[List[frontend.ast.Decl]] =
-    val lexer                      = overseer.getLexer(input)
-    val parser                     = overseer.getParser(lexer)
-    val (decls, parserDiagnostics) = parser.parse
-    frontend.diagnostics.Diagnostics(filename, input).printDiagnostics(parserDiagnostics)
-    if parserDiagnostics.containsErrors then None else Some(decls)
+    val tokens         = overseer.getLexer(input).lex
+    val (diags, decls) = overseer.getParser(tokens).parse(tokens)
+    if diags.containsErrors then
+      frontend.diagnostics.Diagnostics(filename, input).printDiagnostics(diags)
+      None
+    else Some(decls)
 
   private def runSema(
       filename: String,
@@ -146,10 +147,7 @@ object Driver:
       decls <- parse(filename, input)
       ast   <- runSema(filename, input, decls)
       ir = genIr(ast)
-    } {
-      // ir.fns.foreach((_, fn) => fn.ssa)
-      println(ir)
-    }
+    } println(ir)
 
   private def executeFile(filename: String)(input: String): Unit =
     for {
