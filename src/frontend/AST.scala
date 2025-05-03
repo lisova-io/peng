@@ -213,7 +213,7 @@ def printStmt(stmt: Stmt, depth: Int): Unit =
       println("WhileStmt")
       printExpr(cond, depth + 1)
       printStmt(body, depth + 1)
-    case UnitRetStmt(_) => println("UnitRetStmt")
+    case UnitRetStmt(_) => println("VoidRetStmt")
 
 def printDecl(decl: Decl, depth: Int = 0): Unit =
   makeOffset(depth)

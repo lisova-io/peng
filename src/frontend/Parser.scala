@@ -1,236 +1,516 @@
 package frontend.parse
 
 import frontend.ast.*
-import frontend.lex.{Lexer, Offset, Span, Token, Tokens, WithSpan}
+import frontend.lex.{Lexer, Offset, Span, Token, WithSpan}
 import frontend.diagnostics.Diagnostic
-import frontend.parse.combinators.Parser as P
 
+import scala.util.boundary, boundary.break
 import scala.collection.mutable.HashMap
-import diagnostics.containsErrors
+
+extension [A, B](e1: Either[A, B])
+  def andThen[A1 >: A, B1](e2: => Either[A1, B1]): Either[A1, B1] = e1.flatMap(_ => e2)
+
+type ParseResult[T] = Either[List[Diagnostic], T]
+
+private def expected[A](span: Span, expected: Any*): Diagnostic = {
+  def formatExpected(l: Seq[Any]): String =
+    l match
+      case Nil           => ""
+      case x +: Nil      => x.toString
+      case x +: y +: Nil => s"$x or $y"
+      case x +: tail     => s"$x, " + formatExpected(tail)
+
+  Diagnostic.error(span, s"expected ${formatExpected(expected)}")
+}
 
 trait Parser:
-  def parse(tokens: Tokens): (List[Diagnostic], List[Decl])
+  def parse: (List[Decl], List[Diagnostic])
 
-object DefaultParser extends Parser:
-  private def parseToken(t: Token): P[WithSpan[Token]] = P.token(
-    _ match
-      case t1 if t1.value == t => Some(t1)
-      case _                   => None,
-    t :: Nil,
-  )
+class DefaultParser(lexer: Lexer) extends Parser:
+  private def matchToken[T](tok: Token, value: T = ()): Token => Option[T] =
+    t => if t.is(tok) then Some(value) else None
 
-  private def parseIdentifier: P[WithSpan[String]] = P
-    .token(
+  private def token[T](filterMap: Token => Option[T], expect: Any*): ParseResult[WithSpan[T]] =
+    lexer.next
+      .map(ws => {
+        val WithSpan(t, s) = ws
+        filterMap(t) match
+          case Some(value) => Right(ws.map(_ => value))
+          case None        => Left(List(expected(s, expect*)))
+      })
+      .getOrElse(Left(List(expected(lexer.endSpan, expect*))))
+
+  private def peekToken[T](filterMap: Token => Option[T], expect: Any*): ParseResult[WithSpan[T]] =
+    lexer.peek
+      .map(ws => {
+        val WithSpan(t, s) = ws
+        filterMap(t) match
+          case Some(value) => Right(ws.map(_ => value))
+          case None        => Left(List(expected(s, expect*)))
+      })
+      .getOrElse(Left(List(expected(lexer.endSpan, expect*))))
+
+  private def parseNumber: ParseResult[WithSpan[BigInt]] =
+    token(
       _ match
-        case WithSpan(Token.Identifier(s), span) => Some(WithSpan(s, span))
-        case _                                   => None
+        case Token.Number(value) => Some(value)
+        case _                   => None
+      ,
+      "number",
+    )
+
+  private def parseIdentifier: ParseResult[WithSpan[String]] =
+    token(
+      _ match
+        case Token.Identifier(value) => Some(value)
+        case _                       => None
       ,
       "identifier",
     )
 
-  private def parseType: P[WithSpan[Type]] = P.token(
-    _ match
-      case WithSpan(Token.Identifier(s), span) => Type.fromString(s).map(WithSpan(_, span))
-      case _                                   => None
-    ,
-    "type",
-  )
-
-  private def parseCallExpr: P[CallExpr] = for {
-    name <- parseIdentifier
-    _    <- parseToken(Token.LParen)
-    args <- parseExpr.backtrack.sepEndBy(parseToken(Token.Comma).backtrack)
-    _    <- parseToken(Token.RParen)
-  } yield CallExpr(name, args)
-  private def parseVarRefExpr: P[VarRefExpr] = parseIdentifier.map(VarRefExpr(_, Type.Undef))
-  private def parseUnaryExpr: P[UnaryExpr] =
-    for {
-      op <- parseToken(Token.Minus).map(_.map(_ => UnaryOp.Minus))
-      e  <- parseExpr
-    } yield UnaryExpr(op, e)
-  private def parseNumLitExpr: P[NumLitExpr] = P
-    .token(
+  private def parseType: ParseResult[WithSpan[Type]] =
+    token(
       _ match
-        case WithSpan(Token.Number(n), span) => Some(NumLitExpr(Type.Undef, WithSpan(n, span)))
-        case _                               => None
+        case Token.Identifier(s) => Type.fromString(s)
+        case _                   => None
       ,
-      "number" :: Nil,
+      "type",
     )
-  private def parseBoolLitExpr: P[BoolLitExpr] =
-    (parseToken(Token.True).backtrack.map(ws => BoolLitExpr(ws.map(_ => true)))
-      <|> parseToken(Token.False).map(ws => BoolLitExpr(ws.map(_ => false))))
-      .expect("boolean literal" :: Nil)
 
-  private def parseTerm: P[Expr] =
-    parseCallExpr.backtrack
-      <|> parseVarRefExpr.backtrack
-      <|> parseUnaryExpr.backtrack
-      <|> parseNumLitExpr.backtrack
-      <|> parseBoolLitExpr.backtrack
-      <|> (for {
-        _ <- parseToken(Token.LParen)
-        e <- parseExpr
-        _ <- parseToken(Token.RParen)
-      } yield e)
+  private def tryParseType: Option[WithSpan[Type]] =
+    peekToken(
+      _ match
+        case Token.Identifier(s) => Type.fromString(s)
+        case _                   => None
+      ,
+      "type",
+    ) match
+      case Left(err) => None
+      case Right(t)  => lexer.next; Some(t)
 
-  private def parseBinExpr(opPrec: Precedence, lhs: Expr): P[Expr] =
-    def parseBinOp: P[WithSpan[BinOp]] = P.token(
-      (
-          ws =>
-            ws.value match
-              case Token.Plus     => Some(ws.map(_ => BinOp.Plus))
-              case Token.Minus    => Some(ws.map(_ => BinOp.Minus))
-              case Token.Asterisk => Some(ws.map(_ => BinOp.Mul))
-              case Token.Assign   => Some(ws.map(_ => BinOp.Assign))
-              case Token.Eq       => Some(ws.map(_ => BinOp.Eq))
-              case Token.Ne       => Some(ws.map(_ => BinOp.Ne))
-              case Token.Le       => Some(ws.map(_ => BinOp.Le))
-              case Token.Lt       => Some(ws.map(_ => BinOp.Lt))
-              case Token.Gt       => Some(ws.map(_ => BinOp.Gt))
-              case Token.Ge       => Some(ws.map(_ => BinOp.Ge))
-              case _              => None
+  private def enclosedInSepBy[T](
+      left: Token,
+      right: Token,
+      item: => ParseResult[T],
+  ): ParseResult[List[T]] =
+    for {
+      _ <- peekToken(t => if t == left then Some(()) else None, left)
+      _ = lexer.next
+      // TODO
+      _ <- peekToken(t => if t == right then Some(()) else None, right)
+      _ = lexer.next
+    } yield ???
+
+  private def parseRefExpr: ParseResult[VarRefExpr | CallExpr] = {
+    def parseArgs: ParseResult[List[Expr]] = {
+      peekToken(
+        _ match
+          case Token.RParen => Some(false)
+          case _            => Some(true),
+        "argument",
+        Token.RParen,
+      ) match
+        case Left(err)                 => return Left(err)
+        case Right(WithSpan(false, _)) => lexer.next; return Right(Nil)
+        case Right(WithSpan(true, _))  => ()
+
+      var args: List[Expr] = Nil
+      while true do {
+        parseExpr match
+          case Left(err)  => return Left(err)
+          case Right(arg) => args :+= arg
+        token(
+          _ match
+            case Token.Comma  => Some(true)
+            case Token.RParen => Some(false)
+            case _            => None,
+          Token.Comma,
+          Token.RParen,
+        ) match
+          case Left(err)                 => return Left(err)
+          case Right(WithSpan(false, _)) => return Right(args)
+          case Right(WithSpan(true, _)) =>
+            peekToken(_ match
+              case Token.RParen => Some(false)
+              case _            => Some(true)) match {
+              case Left(err)                 => return Left(err)
+              case Right(WithSpan(false, _)) => lexer.next; return Right(args)
+              case Right(WithSpan(true, _))  => ()
+            }
+      }
+      Right(args)
+    }
+
+    for {
+      name <- parseIdentifier
+      hasArgs <- peekToken(
+        _ match
+          case Token.LParen => Some(true)
+          case _            => Some(false)
+      )
+      args <-
+        if hasArgs.value then { lexer.next; parseArgs.map(a => Some(a)) }
+        else Right(None)
+    } yield {
+      args match
+        case Some(args) => CallExpr(name, args)
+        case None       => VarRefExpr(name, Type.Undef)
+    }
+  }
+
+  private def parseNumLiteral: ParseResult[NumLitExpr] =
+    token(
+      (_ match
+        case Token.Number(value) => Some(value)
+        case _                   => None
       ),
-      "binary operator" :: Nil,
+      Token.Number,
+    ).map(v => NumLitExpr(Type.Undef, v))
+
+  private def parseBoolLiteral: ParseResult[BoolLitExpr] =
+    token(
+      (_ match
+        case Token.True  => Some(true)
+        case Token.False => Some(false)
+        case _           => None
+      ),
+      Token.True,
+      Token.False,
+    ).map(v => BoolLitExpr(v))
+
+  private def parseTerm: ParseResult[Expr] = {
+    enum ExprType:
+      case Subexpr
+      case Ref
+      case Num
+      case Bool
+
+    peekToken(
+      (
+        _ match
+          case Token.LParen             => Some(ExprType.Subexpr)
+          case Token.Identifier(_)      => Some(ExprType.Ref)
+          case Token.Number(_)          => Some(ExprType.Num)
+          case Token.True | Token.False => Some(ExprType.Bool)
+          case _                        => None
+      ),
+      "expression",
+    ).flatMap(ws =>
+      val WithSpan(ex, _) = ws
+      ex match
+        case ExprType.Subexpr => {
+          lexer.next;
+          parseExpr.flatMap(e =>
+            token(matchToken(Token.RParen), Token.RParen)
+              .andThen(Right(e))
+          )
+        }
+        case ExprType.Ref  => parseRefExpr
+        case ExprType.Num  => parseNumLiteral
+        case ExprType.Bool => parseBoolLiteral
     )
-    def getCurPrecedence: P[Precedence] = parseBinOp.lookahead.backtrack
-      .map(_.value.precedence)
-      .ignoreFailure(-1)
+  }
 
-    getCurPrecedence.flatMap(curPrec => {
-      if curPrec < opPrec
-      then P.pure(lhs)
-      else
-        for {
-          op       <- parseBinOp
-          rhs      <- parseTerm
-          nextPrec <- getCurPrecedence
+  private def parseBinaryExpr(opPrec: Precedence, _lhs: Expr): ParseResult[Expr] = {
+    def binOpFromToken(tok: Token): Option[BinOp] =
+      tok match
+        case Token.Plus     => Some(BinOp.Plus)
+        case Token.Minus    => Some(BinOp.Minus)
+        case Token.Asterisk => Some(BinOp.Mul)
+        case Token.Assign   => Some(BinOp.Assign)
+        case Token.Eq       => Some(BinOp.Eq)
+        case Token.Ne       => Some(BinOp.Ne)
+        case Token.Le       => Some(BinOp.Le)
+        case Token.Lt       => Some(BinOp.Lt)
+        case Token.Gt       => Some(BinOp.Gt)
+        case Token.Ge       => Some(BinOp.Ge)
+        case _              => None
+
+    def getCurPrecedence: Precedence = lexer.peek
+      .flatMap(ws => binOpFromToken(ws.value).map(_.precedence))
+      .getOrElse(-1)
+
+    var lhs: Expr = _lhs;
+    boundary {
+      while true do {
+        val curPrec = getCurPrecedence
+        if curPrec < opPrec then break(Right(lhs))
+
+        val res = for {
+          binOp <- token(binOpFromToken, "binary operator")
+          rhs   <- parseTerm
           rhs <-
-            if curPrec < nextPrec
-            then parseBinExpr(curPrec + 1, rhs)
-            else P.pure(rhs)
-          e = BinExpr(op, lhs, rhs, Type.Undef)
-          be <- parseBinExpr(opPrec, e)
-        } yield be
-    })
+            if curPrec < getCurPrecedence
+            then parseBinaryExpr(curPrec + 1, rhs)
+            else Right(rhs)
+        } yield BinExpr(binOp, lhs, rhs, Type.Undef)
 
-  private def parseExpr: P[Expr] =
-    parseTerm
-      .flatMap(lhs => parseBinExpr(0, lhs))
-      .expect("expression" :: Nil)
+        res match
+          case Left(err) => break(Left(err))
+          case Right(e)  => lhs = e
+      }
 
-  private def parseExprStmt: P[ExprStmt] = parseExpr.map(ExprStmt(_))
-  private def parseIfStmt: P[IfStmt] =
+      Right(lhs)
+    }
+  }
+
+  private def parseExpr: ParseResult[Expr] =
     for {
-      _    <- parseToken(Token.If)
-      cond <- parseExpr
-      tBr  <- parseBlock.map(BlockStmt(_))
-      fBr <- (parseToken(Token.Else) *> parseBlock
-        .map(BlockStmt(_))
-        .orElse[IfStmt, IfStmt | BlockStmt](parseIfStmt))
-        .map(Some(_))
-        .backtrack
-        .ignoreFailure(None)
-    } yield IfStmt(cond, tBr, fBr)
-  private def parseWhileStmt: P[WhileStmt] = for {
-    _    <- parseToken(Token.While)
-    cond <- parseExpr
-    body <- parseBlock.map(BlockStmt(_))
-  } yield WhileStmt(cond, body)
-  private def parseDeclStmt: P[DeclStmt] = parseVarDecl.map(DeclStmt(_))
-  private def parseRetStmt: P[RetStmt | UnitRetStmt] =
-    for {
-      WithSpan(_, span) <- parseToken(Token.Return)
-      e                 <- parseExpr.backtrack.map(Some(_)).ignoreFailure(None)
-    } yield e match
-      case None    => UnitRetStmt(span)
-      case Some(e) => RetStmt(e)
+      lhs <- parseTerm
+      e   <- parseBinaryExpr(0, lhs)
+    } yield e
 
-  private def parseStmt: P[Stmt] =
-    ((parseExprStmt <* parseToken(Token.Semicolon)).backtrack
-      <|> (parseRetStmt <* parseToken(Token.Semicolon)).backtrack
-      <|> parseIfStmt.backtrack
-      <|> parseWhileStmt.backtrack
-      <|> (parseDeclStmt <* parseToken(Token.Semicolon)).backtrack
-      <|> parseBlock.map(BlockStmt(_)))
-      .expect("statement" :: Nil)
+  private def parseRetStmt: ParseResult[RetStmt | UnitRetStmt] =
+    token(matchToken(Token.Return), Token.Return)
+      .flatMap(unitws =>
+        peekToken(_ match
+          case Token.Semicolon => Some(false)
+          case _               => Some(true)).map(b => WithSpan(b.value, unitws.span))
+      )
+      .flatMap(ws => {
+        val WithSpan(hasExpr, retSpan) = ws
+        if hasExpr then parseExpr.map(e => RetStmt(e)) else Right(UnitRetStmt(retSpan))
+      })
 
-  private def parseBlock: P[Block] = parseBlockWithRBrace.map(_._1)
+  private def parseIfStmt: ParseResult[IfStmt] = {
+    def parseIfOrBlock: ParseResult[BlockStmt | IfStmt] =
+      for {
+        isIf <- peekToken(
+          _ match
+            case Token.If     => Some(true)
+            case Token.LBrace => Some(false)
+            case _            => None,
+          "statement",
+        )
+        res <- if isIf.value then parseIfStmt else parseBlock
+      } yield res
 
-  private def parseBlockWithRBrace: P[(Block, Span)] =
-    for {
-      _ <- parseToken(Token.LBrace)
-      b <- parseStmt.backtrack.sepBy(parseToken(Token.Semicolon).backtrack.many)
-      r <- parseToken(Token.RBrace)
-    } yield b -> r.span
+    def parseElse: ParseResult[Option[BlockStmt | IfStmt]] =
+      peekToken(_ match
+        case Token.Else => Some(true)
+        case _          => Some(false))
+        .flatMap(hasElse =>
+          if !hasElse.value
+          then Right(None)
+          else {
+            lexer.next
+            parseIfOrBlock.map(Some(_))
+          }
+        )
 
-  private def parseFnDecl: P[FnDecl] =
-    def parseParam: P[(WithSpan[Name], WithSpan[Type])] =
+    token(matchToken(Token.If), Token.If).andThen(
+      for {
+        cond    <- parseExpr
+        onTrue  <- parseBlock
+        onFalse <- parseElse
+      } yield IfStmt(cond, onTrue, onFalse)
+    )
+  }
+
+  private def parseWhileStmt: ParseResult[WhileStmt] = {
+    token(matchToken(Token.While), Token.While).andThen(
+      for {
+        cond <- parseExpr
+        body <- parseBlock
+      } yield WhileStmt(cond, body)
+    )
+  }
+
+  private def parseStmt: ParseResult[Stmt] = {
+    enum StmtType {
+      case Expr
+      case If
+      case While
+      case Block
+      case Decl
+      case Ret
+    }
+
+    peekToken(t =>
+      t match
+        case Token.LBrace            => Some(StmtType.Block)
+        case (Token.Val | Token.Var) => Some(StmtType.Decl)
+        case Token.Return            => Some(StmtType.Ret)
+        case Token.If                => Some(StmtType.If)
+        case Token.While             => Some(StmtType.While)
+        case _                       => Some(StmtType.Expr)
+    ).flatMap(ws =>
+      val WithSpan(s, _) = ws
+      s match
+        case StmtType.Expr  => parseExpr.map(e => ExprStmt(e))
+        case StmtType.Block => parseBlock
+        case StmtType.If    => parseIfStmt
+        case StmtType.While => parseWhileStmt
+        case StmtType.Decl  => parseVarDecl.map(d => DeclStmt(d))
+        case StmtType.Ret   => parseRetStmt
+    )
+  }
+
+  private def parseBlock = parseBlockWithLastRParen.map(_._1)
+
+  private def parseBlockWithLastRParen: ParseResult[(BlockStmt, Span)] = {
+    def block = boundary {
+      var block: Block = Nil
+
+      while true do {
+        def peekSemi = peekToken(matchToken(Token.Semicolon))
+        def semi     = token(matchToken(Token.Semicolon), Token.Semicolon)
+
+        while peekSemi.isRight do semi
+
+        val r: ParseResult[WithSpan[Boolean]] = peekToken(t =>
+          t match
+            case Token.RBrace => Some(false)
+            case _            => Some(true)
+        )
+
+        r match
+          case Left(err) => throw RuntimeException(s"unreachable, got error $err")
+          case Right(WithSpan(false, span)) => lexer.next; break(Right((block, span)))
+          case Right(WithSpan(true, _))     => ()
+
+        val shouldExpectSemi =
+          parseStmt match
+            case Left(err) => break(Left(err))
+            case Right(stmt) =>
+              block :+= stmt
+              stmt match
+                case BlockStmt(_) | IfStmt(_, _, _) | WhileStmt(_, _) => false
+                case _                                                => true
+
+        if shouldExpectSemi then
+          semi match
+            case Left(err) => break(Left(err))
+            case Right(_)  => ()
+      }
+      ???
+    }
+
+    token(matchToken(Token.LBrace), Token.LBrace)
+      .andThen(block.map(b => BlockStmt(b._1) -> b._2))
+  }
+
+  private def parseFnDecl: ParseResult[FnDecl] = {
+    def parseParam: ParseResult[(WithSpan[Name], WithSpan[Type])] =
       for {
         name <- parseIdentifier
-        _    <- parseToken(Token.Colon)
+        _    <- token(matchToken(Token.Colon), Token.Colon)
         tp   <- parseType
-      } yield name -> tp
-    def parseParams: P[List[(WithSpan[Name], WithSpan[Type])]] =
-      parseParam.backtrack.sepEndBy(parseToken(Token.Comma).backtrack)
+      } yield (name, tp)
+
+    def parseParams: ParseResult[List[(WithSpan[Name], WithSpan[Type])]] = {
+      def params = boundary {
+        peekToken(
+          {
+            _ match
+              case Token.RParen => Some(false)
+              case _            => Some(true)
+          },
+          "parameter",
+          Token.RParen,
+        ) match
+          case Left(err)                 => break(Left(err))
+          case Right(WithSpan(false, _)) => lexer.next; break(Right(Nil))
+          case Right(WithSpan(true, _))  => ()
+
+        var params: List[(WithSpan[Name], WithSpan[Type])] = Nil
+        while true do {
+          parseParam match
+            case Left(err)    => break(Left(err))
+            case Right(param) => params :+= param
+
+          token(
+            { t =>
+              t match
+                case Token.Comma  => Some(true)
+                case Token.RParen => Some(false)
+                case _            => None
+            },
+            Token.Comma,
+            Token.RParen,
+          ) match
+            case Left(err)                 => break(Left(err))
+            case Right(WithSpan(false, _)) => break(Right(params))
+            case Right(WithSpan(true, _))  => ()
+        }
+        Right(params)
+      }
+
+      token(matchToken(Token.LParen), Token.LParen).andThen(params)
+    }
+
+    token(matchToken(Token.Fn), Token.Fn).andThen(
+      for {
+        name   <- parseIdentifier
+        params <- parseParams
+        rettype = tryParseType.getOrElse(lexer.peek.map(ws => ws.map(_ => Type.Unit)).get)
+        (body, rParenSpan) <- parseBlockWithLastRParen
+      } yield {
+        if rettype.value != Type.Unit then FnDecl(name, params, rettype, body)
+        else
+          FnDecl(
+            name,
+            params,
+            rettype,
+            BlockStmt(body.block.lastOption match
+              case Some(UnitRetStmt(_)) => body.block
+              case _                    => body.block :+ UnitRetStmt(rParenSpan)),
+          )
+      }
+    )
+  }
+
+  private def parseVarDecl: ParseResult[VarDecl] = {
+    def t: ParseResult[WithSpan[Type]] =
+      peekToken(
+        (_ match
+          case Token.Colon  => Some(true)
+          case Token.Assign => Some(false)
+          case _            => None
+        ),
+        "variable type",
+        "value",
+      ).flatMap(ws => {
+        val WithSpan(typeSpecified, _) = ws
+        if typeSpecified then { lexer.next; parseType }
+        else Right(ws.map(_ => Type.Undef))
+      })
 
     for {
-      _      <- parseToken(Token.Fn)
-      name   <- parseIdentifier.expect("function name" :: Nil)
-      _      <- parseToken(Token.LParen)
-      params <- parseParams
-      _      <- parseToken(Token.RParen)
-      rettype <- (parseType.backtrack <|> (parseToken(Token.LBrace).lookahead
-        .map(_.map(_ => Type.Unit)))).expect("function return type" :: Nil)
-      (body, rbraceSpan) <- parseBlockWithRBrace
-        .map(p => BlockStmt(p._1) -> p._2)
-      // .expect("function body" :: Nil)
-    } yield
-      // this is a dirty hack, should be fixed?
-      val b =
-        if rettype.value == Type.Unit then
-          body.block.lastOption match
-            case Some(u: UnitRetStmt) => body
-            case _                    => BlockStmt(body.block :+ UnitRetStmt(rbraceSpan))
-        else body
-      FnDecl(name, params, rettype, b)
-
-  private def parseVarDecl: P[VarDecl] =
-    for {
-      const <- P.token(
-        _.value match
+      const <- token(
+        (_ match
           case Token.Val => Some(true)
           case Token.Var => Some(false)
           case _         => None
-        ,
-        Token.Val :: Token.Var :: Nil,
+        ),
+        Token.Val,
+        Token.Var,
       )
-      name <- parseIdentifier
-      tp <- (parseToken(Token.Colon) *> parseType).backtrack
-        <|> P.pure(WithSpan(Type.Undef, name.span))
-      value <- parseToken(Token.Assign) *> parseExpr
-    } yield VarDecl(const, name, tp, value)
+      name  <- parseIdentifier
+      tp    <- t
+      value <- token(matchToken(Token.Assign), Token.Assign).andThen(parseExpr)
+    } yield VarDecl(const.value, name, tp, value)
+  }
 
-  private def parseDecl: P[Decl] =
-    (parseFnDecl.map(_.asInstanceOf[Decl]).backtrack
-      <|> (parseVarDecl <* parseToken(Token.Semicolon)))
-      .expect("declaration" :: Nil)
+  def parse: (List[Decl], List[Diagnostic]) = {
+    var res: List[Decl]               = Nil
+    var diagnostics: List[Diagnostic] = Nil
 
-  override def parse(t: Tokens): (List[Diagnostic], List[Decl]) =
-    var tokens                  = t
-    var diags: List[Diagnostic] = Nil
-    var decls: List[Decl]       = Nil
-    while !tokens.isEmpty do
-      val (res, toks) = parseDecl.run(tokens)
-      res match
-        case Left(diag) =>
-          diags :+= diag
-          tokens = P
-            .skipUntil(_ match
-              case Token.Val | Token.Var | Token.Fn => true
-              case _                                => false)
-            .run(toks)
-            ._2
-        case Right(decl) =>
-          decls :+= decl
-          tokens = toks
-    diags -> decls
+    while lexer.peek.isDefined do
+      val declRes: Option[ParseResult[Decl]] = lexer.peek.get match
+        case WithSpan(Token.Fn, _) => Some(parseFnDecl)
+        case WithSpan(Token.Val | Token.Var, _) =>
+          Some(
+            parseVarDecl.flatMap(d =>
+              token(matchToken(Token.Semicolon), Token.Semicolon).map(_ => d)
+            )
+          )
+        case WithSpan(Token.Semicolon, _) => lexer.next; None
+        case WithSpan(t, s) => lexer.next; Some(Left(List(expected(s, "declaration"))))
+      declRes match
+        case None              => ()
+        case Some(Left(diags)) => diagnostics ++= diags
+        case Some(Right(decl)) => res :+= decl
+
+    (res, diagnostics)
+  }

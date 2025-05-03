@@ -1,3 +1,1 @@
-fn main() {
-	val a = 4 + 2;
-}
+fn main() {}
