@@ -4,7 +4,8 @@ import backend.ir.evaluator.Eval
 import backend.irgen.asttranslator.*
 import backend.opt.passsetup.OptLevel
 
-import frontend.ast.printAST
+import frontend.translationUnit.printTranslationUnit
+import frontend.translationUnit.TranslationUnit
 import frontend.sema.SemaResult
 
 import overseer.DebugOverseer
@@ -116,46 +117,47 @@ object Driver:
       finally source.close()
     f(input)
 
-  private def parse(filename: String, input: String): Option[List[frontend.ast.Decl]] =
-    val lexer                      = overseer.getLexer(input)
-    val parser                     = overseer.getParser(lexer)
-    val (decls, parserDiagnostics) = parser.parse
+  private def parse(
+      filename: String,
+      input: String,
+  ): Option[(List[frontend.types.TypeDecl], List[frontend.ast.Decl])] =
+    val lexer                             = overseer.getLexer(input)
+    val parser                            = overseer.getParser(lexer)
+    val (types, decls, parserDiagnostics) = parser.parse
     frontend.diagnostics.Diagnostics(filename, input).printDiagnostics(parserDiagnostics)
-    if parserDiagnostics.containsErrors then None else Some(decls)
+    if parserDiagnostics.containsErrors then None else Some(types -> decls)
 
   private def runSema(
       filename: String,
       input: String,
+      types: List[frontend.types.TypeDecl],
       decls: List[frontend.ast.Decl],
-  ): Option[frontend.ast.AST] =
-    val SemaResult(ast, semaDiagnostics) = overseer.getSema.run(decls)
+  ): Option[TranslationUnit] =
+    val SemaResult(tsUnit, semaDiagnostics) = overseer.getSema.run(types, decls)
     frontend.diagnostics.Diagnostics(filename, input).printDiagnostics(semaDiagnostics)
-    if semaDiagnostics.containsErrors then None else Some(ast)
+    if semaDiagnostics.containsErrors then None else Some(tsUnit)
 
   private def genIr(ast: frontend.ast.AST): backend.ir.control.Program =
     overseer.getTranslator(ast).gen
 
-  private def parseAndPrintAST(filename: String)(input: String) =
+  private def parseAndPrintTranslationUnit(filename: String)(input: String) =
     for {
-      decls <- parse(filename, input)
-      ast   <- runSema(filename, input, decls)
-    } printAST(ast)
+      (types, decls) <- parse(filename, input)
+      tsUnit         <- runSema(filename, input, types, decls)
+    } printTranslationUnit(tsUnit)
 
   private def printIr(filename: String)(input: String) =
     for {
-      decls <- parse(filename, input)
-      ast   <- runSema(filename, input, decls)
-      ir = genIr(ast)
-    } {
-      // ir.fns.foreach((_, fn) => fn.ssa)
-      println(ir)
-    }
+      (types, decls) <- parse(filename, input)
+      tsUnit         <- runSema(filename, input, types, decls)
+      ir = genIr(tsUnit.ast)
+    } println(ir)
 
   private def executeFile(filename: String)(input: String): Unit =
     for {
-      decls <- parse(filename, input)
-      ast   <- runSema(filename, input, decls)
-      ir = genIr(ast)
+      (types, decls) <- parse(filename, input)
+      tsUnit         <- runSema(filename, input, types, decls)
+      ir = genIr(tsUnit.ast)
     } println(Eval(ir).eval)
 
   private def writeToFile(path: String, msg: String): Unit =
@@ -165,9 +167,9 @@ object Driver:
 
   private def graph(filename: String)(input: String): Unit =
     for {
-      decls <- parse(filename, input)
-      ast   <- runSema(filename, input, decls)
-      ir = genIr(ast)
+      (types, decls) <- parse(filename, input)
+      tsUnit         <- runSema(filename, input, types, decls)
+      ir = genIr(tsUnit.ast)
     } {
       val gv      = backend.graphviz.GraphViz.programToGV(filename, ir)
       val outFile = Paths.get("graphs/" + filename).normalize()
@@ -195,8 +197,9 @@ available commands:
         println("for more information see `peng help`")
       case Right((options, _)) =>
         options.cmd match
-          case Command.Help          => printHelp
-          case Command.Run(src)      => src.foreach(f => mapFile(f, executeFile(f)))
-          case Command.PrintAst(src) => src.foreach(f => mapFile(f, parseAndPrintAST(f)))
-          case Command.PrintIr(src)  => src.foreach(f => mapFile(f, printIr(f)))
-          case Command.Graph(src)    => src.foreach(f => mapFile(f, graph(f)))
+          case Command.Help     => printHelp
+          case Command.Run(src) => src.foreach(f => mapFile(f, executeFile(f)))
+          case Command.PrintAst(src) =>
+            src.foreach(f => mapFile(f, parseAndPrintTranslationUnit(f)))
+          case Command.PrintIr(src) => src.foreach(f => mapFile(f, printIr(f)))
+          case Command.Graph(src)   => src.foreach(f => mapFile(f, graph(f)))

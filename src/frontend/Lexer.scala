@@ -1,6 +1,5 @@
-package frontend.lex
-
-import frontend.lex.Token
+package frontend
+package lex
 
 extension (c: Char)
   def isIdentifierStart = c.isLetter || c == '_'

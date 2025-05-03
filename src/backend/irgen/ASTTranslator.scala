@@ -2,6 +2,7 @@ package backend.irgen.asttranslator
 
 import frontend.ast.*
 import frontend.lex.WithSpan
+import frontend.types.Type
 import backend.ir.ir.*
 import backend.ir.control.*
 import backend.ir.irvalue.*

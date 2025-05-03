@@ -1,9 +1,12 @@
-package frontend.ast
+package frontend
+package ast
 
 import scala.collection.mutable.HashMap
-import frontend.lex.{Span, WithSpan}
 
-type TypeError = String
+import lex.{Span, WithSpan}
+import types.Type
+import translationUnit.Name
+import treePrinter.makeOffset
 
 sealed trait AstNode
 sealed trait Decl(
@@ -14,54 +17,7 @@ sealed trait Stmt extends AstNode
 sealed trait Expr extends AstNode:
   def getSpan: Span
 
-type AST  = HashMap[Name, Decl]
-type Name = String
-enum Type {
-  case Unit
-  case Bool
-  case I8, U8
-  case I16, U16
-  case I32, U32
-  case I64, U64
-  case Undef
-  case Invalid
-
-  override def toString: String =
-    this match
-      case Unit    => "unit"
-      case I8      => "i8"
-      case U8      => "u8"
-      case I16     => "i16"
-      case U16     => "u16"
-      case I32     => "i32"
-      case U32     => "u32"
-      case I64     => "i64"
-      case U64     => "u64"
-      case Bool    => "bool"
-      case Undef   => "*UNDEF*"
-      case Invalid => "*INVALID*"
-
-  def isIntegerType: Boolean =
-    this match
-      case I8 | U8 | I16 | U16 | I32 | U32 | I64 | U64 => true
-      case _                                           => false
-}
-
-object Type:
-  def fromString(s: String): Option[Type] =
-    s match
-      case "i8"   => Some(Type.I8)
-      case "u8"   => Some(Type.U8)
-      case "i16"  => Some(Type.I16)
-      case "u16"  => Some(Type.U16)
-      case "i32"  => Some(Type.I32)
-      case "u32"  => Some(Type.U32)
-      case "i64"  => Some(Type.I64)
-      case "u64"  => Some(Type.U64)
-      case "bool" => Some(Type.Bool)
-      case "unit" => Some(Type.Unit)
-      case _      => None
-
+type AST   = HashMap[Name, Decl]
 type Block = List[Stmt]
 
 sealed case class FnDecl(
@@ -167,67 +123,62 @@ sealed case class BoolLitExpr(val value: WithSpan[Boolean]) extends Expr:
   override def toString: String = value.value.toString
   override def getSpan: Span    = value.span
 
-private def makeOffset(depth: Int) = print("  " * depth)
-
-def printExpr(expr: Expr, depth: Int): Unit =
+private def printNode(expr: Expr, depth: Int): Unit =
   makeOffset(depth)
   expr match
     case BinExpr(WithSpan(op, _), lhs, rhs, tp) =>
       println(s"BinExpr $op $tp")
-      printExpr(lhs, depth + 1)
-      printExpr(rhs, depth + 1)
+      printNode(lhs, depth + 1)
+      printNode(rhs, depth + 1)
     case VarRefExpr(WithSpan(name, _), tp) =>
       println(s"VarRefExpr $name $tp")
     case CallExpr(WithSpan(name, _), args) =>
       println(s"CallExpr $name")
-      args.foreach(e => printExpr(e, depth + 1))
+      args.foreach(e => printNode(e, depth + 1))
     case UnaryExpr(WithSpan(op, _), e) =>
       println(s"UnaryExpr $op")
-      printExpr(e, depth + 1)
+      printNode(e, depth + 1)
     case NumLitExpr(t, WithSpan(v, _)) =>
       println(s"NumLitExpr $t $v")
     case BoolLitExpr(WithSpan(v, _)) =>
       println(s"BoolLitExpr $v")
 
-def printStmt(stmt: Stmt, depth: Int): Unit =
+private def printNode(stmt: Stmt, depth: Int): Unit =
   makeOffset(depth)
   stmt match
     case BlockStmt(block) =>
       println("BlockStmt")
-      block.foreach(s => printStmt(s, depth + 1))
+      block.foreach(s => printNode(s, depth + 1))
     case ExprStmt(e) =>
       println("ExprStmt")
-      printExpr(e, depth + 1)
+      printNode(e, depth + 1)
     case DeclStmt(d) =>
       println("DeclStmt")
-      printDecl(d, depth + 1)
+      printNode(d, depth + 1)
     case RetStmt(e) =>
       println("RetStmt")
-      printExpr(e, depth + 1)
+      printNode(e, depth + 1)
     case IfStmt(cond, onTrue, onFalse) =>
       println("IfStmt")
-      printExpr(cond, depth + 1)
-      printStmt(onTrue, depth + 1)
-      if onFalse.isDefined then printStmt(onFalse.get, depth + 1)
+      printNode(cond, depth + 1)
+      printNode(onTrue, depth + 1)
+      if onFalse.isDefined then printNode(onFalse.get, depth + 1)
     case WhileStmt(cond, body) =>
       println("WhileStmt")
-      printExpr(cond, depth + 1)
-      printStmt(body, depth + 1)
+      printNode(cond, depth + 1)
+      printNode(body, depth + 1)
     case UnitRetStmt(_) => println("VoidRetStmt")
 
-def printDecl(decl: Decl, depth: Int = 0): Unit =
+def printNode(decl: Decl, depth: Int = 0): Unit =
   makeOffset(depth)
   decl match
     case FnDecl(WithSpan(name, _), params, rettype, body) =>
       println(
         s"FnDecl $name(${params.map(p => s"${p._1.value}: ${p._2.value}").mkString(", ")}) ${rettype.value}"
       )
-      body.block.foreach(s => printStmt(s, depth + 1))
+      body.block.foreach(s => printNode(s, depth + 1))
     case VarDecl(const, WithSpan(name, _), tp, value) =>
       println(
         s"VarDecl ${if const then "val" else "var"} $name ${tp.value}"
       )
-      printExpr(value, depth + 1)
-
-def printAST(ast: AST): Unit =
-  ast.foreachEntry((_, decl) => printDecl(decl))
+      printNode(value, depth + 1)

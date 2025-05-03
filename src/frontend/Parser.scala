@@ -1,8 +1,11 @@
-package frontend.parse
+package frontend
+package parse
 
-import frontend.ast.*
-import frontend.lex.{Lexer, Offset, Span, Token, WithSpan}
-import frontend.diagnostics.Diagnostic
+import ast.*
+import types.*
+import translationUnit.Name
+import lex.{Lexer, Offset, Span, Token, WithSpan}
+import diagnostics.Diagnostic
 
 import scala.util.boundary, boundary.break
 import scala.collection.mutable.HashMap
@@ -24,7 +27,7 @@ private def expected[A](span: Span, expected: Any*): Diagnostic = {
 }
 
 trait Parser:
-  def parse: (List[Decl], List[Diagnostic])
+  def parse: (List[TypeDecl], List[Decl], List[Diagnostic])
 
 class DefaultParser(lexer: Lexer) extends Parser:
   private def matchToken[T](tok: Token, value: T = ()): Token => Option[T] =
@@ -71,7 +74,7 @@ class DefaultParser(lexer: Lexer) extends Parser:
   private def parseType: ParseResult[WithSpan[Type]] =
     token(
       _ match
-        case Token.Identifier(s) => Type.fromString(s)
+        case Token.Identifier(s) => Some(Type.fromString(s))
         case _                   => None
       ,
       "type",
@@ -80,7 +83,7 @@ class DefaultParser(lexer: Lexer) extends Parser:
   private def tryParseType: Option[WithSpan[Type]] =
     peekToken(
       _ match
-        case Token.Identifier(s) => Type.fromString(s)
+        case Token.Identifier(s) => Some(Type.fromString(s))
         case _                   => None
       ,
       "type",
@@ -492,13 +495,69 @@ class DefaultParser(lexer: Lexer) extends Parser:
     } yield VarDecl(const.value, name, tp, value)
   }
 
-  def parse: (List[Decl], List[Diagnostic]) = {
-    var res: List[Decl]               = Nil
+  private def parseStructDecl: ParseResult[StructDecl] =
+    def parseField: ParseResult[(WithSpan[Name], WithSpan[Type])] =
+      for {
+        name <- parseIdentifier
+        _    <- token(matchToken(Token.Colon), Token.Colon)
+        tp   <- parseType
+      } yield (name, tp)
+
+    def parseFields: ParseResult[List[(WithSpan[Name], WithSpan[Type])]] = boundary {
+      peekToken(
+        {
+          _ match
+            case Token.RBrace => Some(false)
+            case _            => Some(true)
+        },
+        "struct field",
+        Token.RBrace,
+      ) match
+        case Left(err)                 => break(Left(err))
+        case Right(WithSpan(false, _)) => lexer.next; break(Right(Nil))
+        case Right(WithSpan(true, _))  => ()
+
+      var fields: List[(WithSpan[Name], WithSpan[Type])] = Nil
+      while true do {
+        parseField match
+          case Left(err)    => return Left(err)
+          case Right(field) => fields :+= field
+        token(
+          _ match
+            case Token.Comma  => Some(true)
+            case Token.RBrace => Some(false)
+            case _            => None,
+          Token.Comma,
+          Token.RBrace,
+        ) match
+          case Left(err)                 => return Left(err)
+          case Right(WithSpan(false, _)) => return Right(fields)
+          case Right(WithSpan(true, _)) =>
+            peekToken(_ match
+              case Token.RBrace => Some(false)
+              case _            => Some(true)) match {
+              case Left(err)                 => return Left(err)
+              case Right(WithSpan(false, _)) => lexer.next; return Right(fields)
+              case Right(WithSpan(true, _))  => ()
+            }
+      }
+      Right(fields)
+    }
+    token(matchToken(Token.Struct), Token.Struct).andThen(for {
+      name   <- parseIdentifier
+      _      <- token(matchToken(Token.LBrace), Token.LBrace)
+      fields <- parseFields
+    } yield StructDecl(name, fields))
+
+  def parse: (List[TypeDecl], List[Decl], List[Diagnostic]) = {
+    var typeDecls: List[TypeDecl]     = Nil
+    var decls: List[Decl]             = Nil
     var diagnostics: List[Diagnostic] = Nil
 
     while lexer.peek.isDefined do
-      val declRes: Option[ParseResult[Decl]] = lexer.peek.get match
-        case WithSpan(Token.Fn, _) => Some(parseFnDecl)
+      val declRes: Option[ParseResult[Decl | TypeDecl]] = lexer.peek.get match
+        case WithSpan(Token.Struct, _) => Some(parseStructDecl)
+        case WithSpan(Token.Fn, _)     => Some(parseFnDecl)
         case WithSpan(Token.Val | Token.Var, _) =>
           Some(
             parseVarDecl.flatMap(d =>
@@ -508,9 +567,10 @@ class DefaultParser(lexer: Lexer) extends Parser:
         case WithSpan(Token.Semicolon, _) => lexer.next; None
         case WithSpan(t, s) => lexer.next; Some(Left(List(expected(s, "declaration"))))
       declRes match
-        case None              => ()
-        case Some(Left(diags)) => diagnostics ++= diags
-        case Some(Right(decl)) => res :+= decl
+        case None                      => ()
+        case Some(Left(diags))         => diagnostics ++= diags
+        case Some(Right(decl: Decl))   => decls :+= decl
+        case Some(Right(tp: TypeDecl)) => typeDecls :+= tp
 
-    (res, diagnostics)
+    (typeDecls, decls, diagnostics)
   }
