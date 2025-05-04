@@ -4,6 +4,8 @@ import backend.ir.evaluator.Eval
 import backend.irgen.asttranslator.*
 import backend.opt.passsetup.OptLevel
 
+import codegen.mir.mirgen.*
+
 import frontend.ast.printAST
 import frontend.sema.SemaResult
 
@@ -20,6 +22,8 @@ enum Command:
   case Help
   case PrintAst(val src: List[String])
   case PrintIr(val src: List[String])
+  case PrintSSA(val src: List[String])
+  case PrintMIR(val src: List[String])
   case Run(val src: List[String])
   case Graph(val src: List[String])
 
@@ -80,6 +84,16 @@ def parsePrintIr: Parser[Command] =
     .andThen(parseSource.many)
     .map(Command.PrintIr(_))
 
+def parsePrintSSA: Parser[Command] =
+  parseCommandLiteral("ssa")
+    .andThen(parseSource.many)
+    .map(Command.PrintSSA(_))
+
+def parsePrintMIR: Parser[Command] =
+  parseCommandLiteral("mir")
+    .andThen(parseSource.many)
+    .map(Command.PrintMIR(_))
+
 def parseRun: Parser[Command] =
   parseCommandLiteral("run")
     .andThen(parseSource.many)
@@ -94,6 +108,8 @@ def parseCmd: Parser[Command] =
   parseCommandLiteral("help").replace(Command.Help)
     <|> parsePrintAst
     <|> parsePrintIr
+    <|> parsePrintSSA
+    <|> parsePrintMIR
     <|> parseGraph
     <|> parseRun
 
@@ -147,8 +163,30 @@ object Driver:
       ast   <- runSema(filename, input, decls)
       ir = genIr(ast)
     } {
-      // ir.fns.foreach((_, fn) => fn.ssa)
       println(ir)
+    }
+
+  private def printSSA(filename: String)(input: String) =
+    for {
+      decls <- parse(filename, input)
+      ast   <- runSema(filename, input, decls)
+      ir = genIr(ast)
+    } {
+      ir.fns.foreach((_, fn) => fn.ssa)
+      println(ir)
+    }
+
+  private def printMIR(filename: String)(input: String) =
+    for {
+      decls <- parse(filename, input)
+      ast   <- runSema(filename, input, decls)
+      ir = genIr(ast)
+    } {
+      val abi       = SystemVABI()
+      val generator = DefaultMIRGen(abi)
+      val mir       = generator.visit(ir)
+      println(mir)
+
     }
 
   private def executeFile(filename: String)(input: String): Unit =
@@ -199,4 +237,6 @@ available commands:
           case Command.Run(src)      => src.foreach(f => mapFile(f, executeFile(f)))
           case Command.PrintAst(src) => src.foreach(f => mapFile(f, parseAndPrintAST(f)))
           case Command.PrintIr(src)  => src.foreach(f => mapFile(f, printIr(f)))
+          case Command.PrintSSA(src) => src.foreach(f => mapFile(f, printSSA(f)))
+          case Command.PrintMIR(src) => src.foreach(f => mapFile(f, printMIR(f)))
           case Command.Graph(src)    => src.foreach(f => mapFile(f, graph(f)))

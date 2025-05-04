@@ -1,5 +1,19 @@
 package backend.ir.irvalue
 
+enum Val:
+  case Add(dest: Val, lhs: Val, rhs: Val)
+  case Sub(dest: Val, lhs: Val, rhs: Val)
+  case I32
+  case Bool
+
+  // def tryMatch(lambda: Value => MValue): Value => Option[MValue] =
+  //   (v: Value) =>
+  //     if matchValue(this, v) then Some(lambda(v))
+  //     else None
+
+trait Matchable:
+  def stMatch(v: Val): Boolean
+
 enum VType:
   case I32
   case Bool
@@ -12,28 +26,69 @@ enum VType:
       case Unit        => "unit"
       case VType.Label => "label"
 
-abstract class Value:
+trait ValueVisitor[Return]:
+  def visit(v: Value): Return
+
+abstract class Value extends Matchable:
+  def accept[Return](visitor: ValueVisitor[Return]): Return =
+    visitor.visit(this)
   def vtype: VType
   def isConst: Boolean = false
 
 case class ImmInt(input: BigInt) extends Value:
+  def stMatch(v: Val): Boolean =
+    v match
+      case Val.I32 => true
+      case _       => false
+
+  override def accept[Return](visitor: ValueVisitor[Return]): Return =
+    visitor.visit(this)
+
   def vtype: VType              = VType.I32
   override def isConst: Boolean = true
   override def toString: String = s"$input"
 
 case class ImmBool(input: Boolean) extends Value:
-  def vtype: VType              = VType.Bool
+  def vtype: VType = VType.Bool
+
+  override def accept[Return](visitor: ValueVisitor[Return]): Return =
+    visitor.visit(this)
+
+  def stMatch(v: Val): Boolean =
+    v match
+      case Val.Bool => true
+      case _        => false
   override def isConst: Boolean = true
   override def toString: String = s"$input"
 
 case class Var(val input: String, vartype: VType) extends Value:
+
+  override def accept[Return](visitor: ValueVisitor[Return]): Return =
+    visitor.visit(this)
+
+  def stMatch(v: Val): Boolean =
+    v match
+      case Val.Bool => vartype == VType.Bool
+      case Val.I32  => vartype == VType.I32
   def vtype: VType              = vartype
   override def toString: String = s"$input"
 
 case class Label(val name: String) extends Value:
+
+  override def accept[Return](visitor: ValueVisitor[Return]): Return =
+    visitor.visit(this)
+
+  def stMatch(v: Val): Boolean =
+    ???
   def vtype: VType              = VType.Label
   override def toString: String = s"$name"
 
 case class Void() extends Value:
+
+  override def accept[Return](visitor: ValueVisitor[Return]): Return =
+    visitor.visit(this)
+
+  def stMatch(v: Val): Boolean =
+    ???
   def vtype: VType              = VType.Unit
   override def toString: String = "_"

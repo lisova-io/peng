@@ -7,33 +7,43 @@ import backend.ir.ir.Predicate
 
 trait MInstr extends MValue
 
-class MAdd(dest: MValue, lhs: MValue, rhs: MValue) extends MInstr:
-  override def vtype: VType = dest.vtype
+case class MAdd(dest: MValue, lhs: MValue, rhs: MValue) extends MInstr:
+  override def vtype: VType       = dest.vtype
+  override def toString(): String = "add " + lhs + ", " + rhs
 
-class MSub(dest: MValue, lhs: MValue, rhs: MValue) extends MInstr:
-  override def vtype: VType = dest.vtype
+case class MSub(dest: MValue, lhs: MValue, rhs: MValue) extends MInstr:
+  override def vtype: VType       = dest.vtype
+  override def toString(): String = "sub " + lhs + ", " + rhs
 
-class MMul(dest: MValue, lhs: MValue, rhs: MValue) extends MInstr:
-  override def vtype: VType = dest.vtype
+case class MMul(dest: MValue, lhs: MValue, rhs: MValue) extends MInstr:
+  override def vtype: VType       = dest.vtype
+  override def toString(): String = "mul " + lhs + ", " + rhs
 
-class MDiv(dest: MValue, lhs: MValue, rhs: MValue) extends MInstr:
-  override def vtype: VType = dest.vtype
+case class MDiv(dest: MValue, lhs: MValue, rhs: MValue) extends MInstr:
+  override def vtype: VType       = dest.vtype
+  override def toString(): String = "div " + lhs + ", " + rhs
 
-class MCall(dest: MValue, fn: MLabel, args: List[MValue]) extends MInstr:
-  override def vtype: VType = dest.vtype
+case class MCall(fn: MLabel) extends MInstr:
+  override def vtype: VType       = VType.Unit
+  override def toString(): String = "call " + fn
 
-class MCmp(dest: MValue, pred: Predicate, lhs: MValue, rhs: MValue) extends MInstr:
-  override def vtype: VType = dest.vtype
+case class MCmp(pred: Predicate, lhs: MValue, rhs: MValue) extends MInstr:
+  override def vtype: VType       = VType.Bool
+  override def toString(): String = "cmp " + pred + " " + lhs + ", " + rhs
 
-class MBr(cond: MValue, tbranch: MLabel, fbranch: MLabel) extends MInstr:
-  override def vtype: VType = cond.vtype
+case class MBr(cond: Predicate, tbranch: MLabel, fbranch: MLabel) extends MInstr:
+  override def vtype: VType       = VType.Unit
+  override def toString(): String = "br " + tbranch + ", " + fbranch
 
-class MMov(lhs: MValue, rhs: MValue) extends MInstr:
+case class MMov(lhs: MValue, rhs: MValue) extends MInstr:
   override def vtype: VType =
     rhs.vtype
+  override def toString(): String = "mov " + lhs + ", " + rhs
 
-class MJmp(label: MLabel) extends MInstr:
-  override def vtype: VType = VType.Unit
+case class MJmp(label: MLabel) extends MInstr:
+  override def vtype: VType       = VType.Unit
+  override def toString(): String = "jmp " + label
 
-class MRet(ret: MValue) extends MInstr:
-  override def vtype: VType = ret.vtype
+case class MRet() extends MInstr:
+  override def vtype: VType       = VType.Unit
+  override def toString(): String = "ret"
