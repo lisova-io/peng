@@ -6,8 +6,9 @@ import frontend.lex.given
 import diagnostics.Diagnostic as BaseDiagnostic
 import diagnostics.Diagnostics as BaseDiagnostics
 import diagnostics.Severity
-import diagnostics.Color
 import diagnostics.given
+
+import scala.io.AnsiColor as Color
 
 class Message(val span: Span, val msg: String)
 object Message:
@@ -41,7 +42,7 @@ class Diagnostics(val filename: String, val input: String) extends BaseDiagnosti
       for m @ Message(span, msg) <- d.messages do
         if m == d.firstMsg then print(s"$filename:$lineNumber:$colNumber: ${d.severity}: ")
         else print(s"$filename:$lineNumber:$colNumber: ${Severity.Note}: ")
-        println(Color.Bold + msg + Color.Reset)
+        println(Color.BOLD + msg + Color.RESET)
         val linesToPrint = lines.filter((l, _) => l._1 <= span.e && l._2 >= span.b)
         for line <- linesToPrint do
           val ((b, e), i)   = line

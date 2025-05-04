@@ -1,15 +1,7 @@
 package diagnostics
 
 import frontend.lex.{Lexer, Offset, Span, Token, WithSpan}
-
-object Color:
-  private def ansi(code: Any): String = 0x1b.toChar + s"[${code}m"
-  val Reset                           = ansi(0)
-  val Bold                            = ansi(1)
-  val Red                             = ansi(31)
-  val Yellow                          = ansi(33)
-  val Green                           = ansi(32)
-  val Blue                            = ansi(34)
+import scala.io.AnsiColor as Color
 
 enum Severity extends Ordered[Severity] {
   case Error
@@ -24,9 +16,9 @@ enum Severity extends Ordered[Severity] {
 
   override def toString(): String =
     this match
-      case Error   => Color.Bold + Color.Red + "error" + Color.Reset
-      case Warning => Color.Bold + Color.Yellow + "warning" + Color.Reset
-      case Note    => Color.Bold + Color.Blue + "note" + Color.Reset
+      case Error   => Color.BOLD + Color.RED + "error" + Color.RESET
+      case Warning => Color.BOLD + Color.YELLOW + "warning" + Color.RESET
+      case Note    => Color.BOLD + Color.BLUE + "note" + Color.RESET
 
   override def compare(that: Severity): Int = this.toInt - that.toInt
 }
