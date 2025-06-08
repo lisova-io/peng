@@ -1,0 +1,7 @@
+fn main() {
+  foo(31, 48, 64, 37);
+}
+
+fn foo(hi: i32, hello: i32, meow: i32, oh: i32) i32 {
+  return 32; 
+}

@@ -1,0 +1,14 @@
+i = mov i32 10;[0K
+been here![0K
+%1 = add i32 i, 5;[0K
+i = mov i32 %1;[0K
+been here![0K
+ret i32 i;[0K
+codegen.mir.mvalue.MLabel@fcd6521:[0K
+.codegen.mir.mvalue.MLabel@3578436e:[0K
+ mov codegen.mir.mvalue.MVar@27d415d9, codegen.mir.mvalue.MInt@5c18298f[0K
+ add codegen.mir.mvalue.MVar@31f924f5, codegen.mir.mvalue.MInt@5579bb86[0K
+ mov codegen.mir.mvalue.MVar@5204062d, codegen.mir.mvalue.MVar@4fcd19b3[0K
+ mov rax, codegen.mir.mvalue.MVar@376b4233[0K
+ ret[0K
+.codegen.mir.mvalue.MLabel@706a04ae[0K

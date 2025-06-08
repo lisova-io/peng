@@ -1,11 +1,5 @@
 import diagnostics.{containsErrors, containsNotes, containsWarnings}
 
-import backend.ir.evaluator.Eval
-import backend.irgen.asttranslator.*
-import backend.opt.passsetup.OptLevel
-
-import codegen.mir.mirgen.*
-
 import frontend.ast.printAST
 import frontend.sema.SemaResult
 
@@ -79,38 +73,38 @@ def parsePrintAst: Parser[Command] =
     .andThen(parseSource.many)
     .map(Command.PrintAst(_))
 
-def parsePrintIr: Parser[Command] =
-  parseCommandLiteral("ir")
-    .andThen(parseSource.many)
-    .map(Command.PrintIr(_))
+// def parsePrintIr: Parser[Command] =
+//   parseCommandLiteral("ir")
+//     .andThen(parseSource.many)
+//     .map(Command.PrintIr(_))
 
-def parsePrintSSA: Parser[Command] =
-  parseCommandLiteral("ssa")
-    .andThen(parseSource.many)
-    .map(Command.PrintSSA(_))
+// def parsePrintSSA: Parser[Command] =
+//   parseCommandLiteral("ssa")
+//     .andThen(parseSource.many)
+//     .map(Command.PrintSSA(_))
 
-def parsePrintMIR: Parser[Command] =
-  parseCommandLiteral("mir")
-    .andThen(parseSource.many)
-    .map(Command.PrintMIR(_))
+// def parsePrintMIR: Parser[Command] =
+//   parseCommandLiteral("mir")
+//     .andThen(parseSource.many)
+//     .map(Command.PrintMIR(_))
 
 def parseRun: Parser[Command] =
   parseCommandLiteral("run")
     .andThen(parseSource.many)
     .map(Command.Run(_))
 
-def parseGraph: Parser[Command] =
-  parseCommandLiteral("graph")
-    .andThen(parseSource.many)
-    .map(Command.Graph(_))
+// def parseGraph: Parser[Command] =
+//   parseCommandLiteral("graph")
+//     .andThen(parseSource.many)
+//     .map(Command.Graph(_))
 
 def parseCmd: Parser[Command] =
   parseCommandLiteral("help").replace(Command.Help)
     <|> parsePrintAst
-    <|> parsePrintIr
-    <|> parsePrintSSA
-    <|> parsePrintMIR
-    <|> parseGraph
+    // <|> parsePrintIr
+    // <|> parsePrintSSA
+    // <|> parsePrintMIR
+    // <|> parseGraph
     <|> parseRun
 
 def parseOptions: Parser[Options] =
@@ -148,8 +142,8 @@ object Driver:
     frontend.diagnostics.Diagnostics(filename, input).printDiagnostics(semaDiagnostics)
     if semaDiagnostics.containsErrors then None else Some(ast)
 
-  private def genIr(ast: frontend.ast.AST): backend.ir.control.Program =
-    overseer.getTranslator(ast).gen
+  // private def genIr(ast: frontend.ast.AST): backend.ir.control.Program =
+  //   overseer.getTranslator(ast).gen
 
   private def parseAndPrintAST(filename: String)(input: String) =
     for {
@@ -157,64 +151,64 @@ object Driver:
       ast   <- runSema(filename, input, decls)
     } printAST(ast)
 
-  private def printIr(filename: String)(input: String) =
-    for {
-      decls <- parse(filename, input)
-      ast   <- runSema(filename, input, decls)
-      ir = genIr(ast)
-    } {
-      println(ir)
-    }
+  // private def printIr(filename: String)(input: String) =
+  //   for {
+  //     decls <- parse(filename, input)
+  //     ast   <- runSema(filename, input, decls)
+  //     ir = genIr(ast)
+  //   } {
+  //     println(ir)
+  //   }
 
-  private def printSSA(filename: String)(input: String) =
-    for {
-      decls <- parse(filename, input)
-      ast   <- runSema(filename, input, decls)
-      ir = genIr(ast)
-    } {
-      ir.fns.foreach((_, fn) => fn.ssa)
-      println(ir)
-    }
+  // private def printSSA(filename: String)(input: String) =
+  //   for {
+  //     decls <- parse(filename, input)
+  //     ast   <- runSema(filename, input, decls)
+  //     ir = genIr(ast)
+  //   } {
+  //     ir.fns.foreach((_, fn) => fn.ssa)
+  //     println(ir)
+  //   }
 
-  private def printMIR(filename: String)(input: String) =
-    for {
-      decls <- parse(filename, input)
-      ast   <- runSema(filename, input, decls)
-      ir = genIr(ast)
-    } {
-      val abi       = SystemVABI()
-      val generator = DefaultMIRGen(abi)
-      val mir       = generator.visit(ir)
-      println(mir)
+  // private def printMIR(filename: String)(input: String) =
+  //   for {
+  //     decls <- parse(filename, input)
+  //     ast   <- runSema(filename, input, decls)
+  //     ir = genIr(ast)
+  //   } {
+  //     val abi       = SystemVABI()
+  //     val generator = DefaultMIRGen(abi)
+  //     val mir       = generator.visit(ir)
+  //     println(mir)
+  //
+  //   }
 
-    }
-
-  private def executeFile(filename: String)(input: String): Unit =
-    for {
-      decls <- parse(filename, input)
-      ast   <- runSema(filename, input, decls)
-      ir = genIr(ast)
-    } println(Eval(ir).eval)
+  // private def executeFile(filename: String)(input: String): Unit =
+  //   for {
+  //     decls <- parse(filename, input)
+  //     ast   <- runSema(filename, input, decls)
+  //     ir = genIr(ast)
+  //   } println(Eval(ir).eval)
 
   private def writeToFile(path: String, msg: String): Unit =
     val pw = PrintWriter(File(path))
     try pw.write(msg)
     finally pw.close()
 
-  private def graph(filename: String)(input: String): Unit =
-    for {
-      decls <- parse(filename, input)
-      ast   <- runSema(filename, input, decls)
-      ir = genIr(ast)
-    } {
-      val gv      = backend.graphviz.GraphViz.programToGV(filename, ir)
-      val outFile = Paths.get("graphs/" + filename).normalize()
-      val outDir  = outFile.getParent();
-      Files.createDirectories(outDir)
-      writeToFile(outFile.toString + ".dot", gv.toString)
-      val svg = ("dot -Tsvg " + outFile.toString + ".dot").!!
-      writeToFile(outFile.toString + ".svg", svg)
-    }
+  // private def graph(filename: String)(input: String): Unit =
+  //   for {
+  //     decls <- parse(filename, input)
+  //     ast   <- runSema(filename, input, decls)
+  //     ir = genIr(ast)
+  //   } {
+  //     val gv      = backend.graphviz.GraphViz.programToGV(filename, ir)
+  //     val outFile = Paths.get("graphs/" + filename).normalize()
+  //     val outDir  = outFile.getParent();
+  //     Files.createDirectories(outDir)
+  //     writeToFile(outFile.toString + ".dot", gv.toString)
+  //     val svg = ("dot -Tsvg " + outFile.toString + ".dot").!!
+  //     writeToFile(outFile.toString + ".svg", svg)
+  //   }
 
   private def printHelp =
     println("""peng compiler
@@ -227,16 +221,17 @@ available commands:
   graph <FILES...> generate .svg files with IR CFG for given files""")
 
   @main def run(args: String*): Unit =
-    parseOptions.run(args) match
-      case Left(err) =>
-        println(err)
-        println("for more information see `peng help`")
-      case Right((options, _)) =>
-        options.cmd match
-          case Command.Help          => printHelp
-          case Command.Run(src)      => src.foreach(f => mapFile(f, executeFile(f)))
-          case Command.PrintAst(src) => src.foreach(f => mapFile(f, parseAndPrintAST(f)))
-          case Command.PrintIr(src)  => src.foreach(f => mapFile(f, printIr(f)))
-          case Command.PrintSSA(src) => src.foreach(f => mapFile(f, printSSA(f)))
-          case Command.PrintMIR(src) => src.foreach(f => mapFile(f, printMIR(f)))
-          case Command.Graph(src)    => src.foreach(f => mapFile(f, graph(f)))
+    println("hehe!")
+    // parseOptions.run(args) match
+    //   case Left(err) =>
+    //     println(err)
+    //     println("for more information see `peng help`")
+    //   case Right((options, _)) =>
+    //     options.cmd match
+    // case Command.Help => printHelp
+    // case Command.Run(src)      => src.foreach(f => mapFile(f, executeFile(f)))
+    // case Command.PrintAst(src) => src.foreach(f => mapFile(f, parseAndPrintAST(f)))
+    // case Command.PrintIr(src)  => src.foreach(f => mapFile(f, printIr(f)))
+    // case Command.PrintSSA(src) => src.foreach(f => mapFile(f, printSSA(f)))
+    // case Command.PrintMIR(src) => src.foreach(f => mapFile(f, printMIR(f)))
+    // case Command.Graph(src)    => src.foreach(f => mapFile(f, graph(f)))
