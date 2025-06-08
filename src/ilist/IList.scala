@@ -1,9 +1,10 @@
+package ilist
 // Intrusive list with reference to parent.
 
 trait IListNode[T <: IListNode[T, P], P](
     var prev: Option[T],
     var next: Option[T],
-    var parent: P,
+    var parent: P
 ):
   def insertBefore(toInsert: T): T =
     assert(toInsert.next.isEmpty)

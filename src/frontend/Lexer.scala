@@ -19,6 +19,7 @@ object Span:
   def unapply(s: Span): (Offset, Offset) = (s.b, s.e)
 
 class WithSpan[+T](val value: T, val span: Span):
+  def unwrapSpan: T = value
   def map[U](fn: T => U): WithSpan[U] = WithSpan(fn(value), span)
 
 object WithSpan:
