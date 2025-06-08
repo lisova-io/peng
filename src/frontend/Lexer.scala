@@ -108,16 +108,16 @@ class DefaultLexer(val input: String) extends Lexer:
               .getOrElse(Token.Gt -> Span(b, b))
           case c if c.isIdentifierStart => {
             (c + getWhile(_.isIdentifierChar)) match
-              case "fn"     => Token.Fn            -> Span(b, b + 1)
-              case "val"    => Token.Val           -> Span(b, b + 2)
-              case "var"    => Token.Var           -> Span(b, b + 2)
-              case "return" => Token.Return        -> Span(b, b + 5)
-              case "if"     => Token.If            -> Span(b, b + 1)
-              case "else"   => Token.Else          -> Span(b, b + 3)
-              case "while"  => Token.While         -> Span(b, b + 4)
-              case "struct" => Token.Struct        -> Span(b, b + 5)
-              case "true"   => Token.True          -> Span(b, b + 3)
-              case "false"  => Token.False         -> Span(b, b + 4)
+              case kw @ "fn"     => Token.Fn            -> Span(b, b + kw.length - 1)
+              case kw @ "val"    => Token.Val           -> Span(b, b + kw.length - 1)
+              case kw @ "var"    => Token.Var           -> Span(b, b + kw.length - 1)
+              case kw @ "return" => Token.Return        -> Span(b, b + kw.length - 1)
+              case kw @ "if"     => Token.If            -> Span(b, b + kw.length - 1)
+              case kw @ "else"   => Token.Else          -> Span(b, b + kw.length - 1)
+              case kw @ "while"  => Token.While         -> Span(b, b + kw.length - 1)
+              case kw @ "struct" => Token.Struct        -> Span(b, b + kw.length - 1)
+              case kw @ "true"   => Token.True          -> Span(b, b + kw.length - 1)
+              case kw @ "false"  => Token.False         -> Span(b, b + kw.length - 1)
               case s        => Token.Identifier(s) -> Span(b, b + s.length - 1)
           }
           case c if c.isDigit => {
